@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>YAKUtime - 受付カウンター</title>
+    
+    <!-- QRコードライブラリ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <!-- Firebase SDK (ESM) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js";
+
+        // =========================================================
+        // 【ご提供いただいた設定を反映しました】
+        // =========================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjSZkIuGQ4oRoMcZYLaZbdBXK45cBBXos",
+            authDomain: "yakutime-for-ipad.firebaseapp.com",
+            projectId: "yakutime-for-ipad",
+            storageBucket: "yakutime-for-ipad.firebasestorage.app",
+            messagingSenderId: "732724570588",
+            appId: "1:732724570588:web:6e64cba96c6fd17646c719",
+            measurementId: "G-0M86E87K2X"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        // ドキュメントのパスを固定
+        const counterDocRef = doc(db, "settings", "counter");
+
+        let count = 0;
+        let lastUpdateTime = Date.now();
+        const AUTO_REDUCE_TIME = 30 * 60 * 1000; // 30分
+
+        const countEl = document.getElementById('countDisplay');
+        const timeEl = document.getElementById('timeDisplay');
+        const statusSec = document.getElementById('statusSection');
+        const qrDiv = document.getElementById('qrcode');
+        const autoNoticeEl = document.getElementById('autoNotice');
+
+        // Firestoreのリアルタイム同期監視
+        onSnapshot(counterDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                count = data.currentCount || 0;
+                lastUpdateTime = data.lastUpdatedAt ? data.lastUpdatedAt.toMillis() : Date.now();
+                updateView();
+            } else {
+                // 初期データ作成
+                saveToFirestore(0);
+            }
+        }, (error) => {
+            console.error("Firestore接続エラー: ルールを確認してください", error);
+        });
+
+        async function saveToFirestore(newCount) {
+            try {
+                await setDoc(counterDocRef, {
+                    currentCount: newCount,
+                    lastUpdatedAt: serverTimestamp()
+                }, { merge: true });
+            } catch (e) {
+                console.error("保存失敗: ", e);
+            }
+        }
+
+        window.handleCheckIn = function() {
+            change(1);
+            showQR();
+        }
+
+        window.change = function(n) {
+            const nextCount = Math.max(0, count + n);
+            saveToFirestore(nextCount);
+            
+            countEl.classList.remove('pop');
+            void countEl.offsetWidth; 
+            countEl.classList.add('pop');
+            
+            if (navigator.vibrate) navigator.vibrate(n > 0 ? [30, 20, 30] : 10);
+        }
+
+        function updateView() {
+            countEl.innerText = count;
+            timeEl.innerText = count * 15;
+            
+            statusSec.classList.remove('warning', 'danger');
+            if (count >= 10) statusSec.classList.add('danger');
+            else if (count >= 5) statusSec.classList.add('warning');
+        }
+
+        window.showQR = function() {
+            qrDiv.innerHTML = ""; 
+            new QRCode(qrDiv, { 
+                text: window.location.href, 
+                width: 200, height: 200,
+                colorDark : "#1e293b",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+            document.getElementById('qrModal').style.display = 'flex';
+        }
+
+        window.closeModal = function() {
+            document.getElementById('qrModal').style.display = 'none';
+        }
+
+        setInterval(() => {
+            if (count > 0) {
+                const now = Date.now();
+                const diff = now - lastUpdateTime;
+                const remaining = Math.max(0, Math.ceil((AUTO_REDUCE_TIME - diff) / 1000 / 60));
+                autoNoticeEl.innerText = `無操作で ${remaining} 分後に自動減少`;
+                if (diff >= AUTO_REDUCE_TIME) window.change(-1);
+            } else {
+                autoNoticeEl.innerText = "";
+            }
+        }, 60000);
+    </script>
+
+    <style>
+        :root { --primary: #10b981; --primary-dark: #059669; --bg: #f8fafc; --text-main: #1e293b; --text-muted: #64748b; }
+        html, body { height: 100%; margin: 0; padding: 0; background-color: var(--bg); font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+        .app-container { width: 100%; max-width: 500px; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 40px 20px; box-sizing: border-box; }
+        .header h1 { font-size: 36px; font-weight: 800; color: var(--text-main); margin: 0; }
+        .header p { font-size: 18px; color: var(--text-muted); text-align: center; margin-top: 10px; }
+        .card { width: 100%; background: white; border-radius: 48px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05); overflow: hidden; border: 1px solid rgba(0,0,0,0.03); }
+        .display-section { background: var(--primary); color: white; padding: 50px 20px; text-align: center; transition: 0.4s; }
+        .count { font-size: 140px; font-weight: 900; line-height: 1; }
+        .estimate { font-size: 24px; font-weight: 600; }
+        .button-section { padding: 30px; text-align: center; }
+        .btn-main { width: 100%; background: var(--primary-dark); color: white; border: none; padding: 30px; border-radius: 32px; font-size: 32px; font-weight: 800; cursor: pointer; box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.2); transition: 0.1s; }
+        .btn-main:active { transform: scale(0.97); }
+        #qrModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(8px); }
+        .modal-content { background: white; padding: 40px; border-radius: 40px; text-align: center; width: 85%; max-width: 400px; }
+        .close-btn { margin-top: 20px; background: var(--primary); border: none; padding: 15px 40px; border-radius: 20px; font-size: 18px; color: white; cursor: pointer; }
+        .btn-staff { background: white; border: 1px solid #e2e8f0; color: #94a3b8; padding: 12px 24px; border-radius: 100px; cursor: pointer; }
+        .warning { background-color: #f59e0b !important; }
+        .danger { background-color: #ef4444 !important; }
+        .pop { animation: pop-anim 0.3s; }
+        @keyframes pop-anim { 50% { transform: scale(1.1); } }
+        #autoNotice { font-size: 11px; color: var(--text-muted); margin-top: 5px; height: 15px; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <h1>YAKUtime</h1>
+            <p>処方箋をお出しになる前に<br>「受付」をお願いします</p>
+        </div>
+
+        <div class="card">
+            <div id="statusSection" class="display-section">
+                <div id="countDisplay" class="count">0</div>
+                <div class="estimate">約 <span id="timeDisplay">0</span> 分待ち</div>
+            </div>
+            <div class="button-section">
+                <button onclick="handleCheckIn()" class="btn-main">受付はこちら</button>
+            </div>
+        </div>
+
+        <div class="staff-section">
+            <div style="text-align:center">
+                <button onclick="change(-1)" class="btn-staff">スタッフ管理: 完了 (-1)</button>
+                <div id="autoNotice"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="qrModal">
+        <div class="modal-content">
+            <h2 style="margin:0;">受付完了</h2>
+            <p style="color:var(--text-muted);">スマホで読み取ると待ち時間を<br>どこでも確認できます</p>
+            <div id="qrcode"></div>
+            <button class="close-btn" onclick="closeModal()">閉じる</button>
+        </div>
+    </div>
+</body>
+</html>
