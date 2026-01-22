@@ -3,180 +3,207 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>YAKUtime - 受付カウンター</title>
-    
-    <!-- QRコードライブラリ -->
+    <title>YAKUtime Pro - 待ち時間分析</title>
+    <!-- PWA用の設定 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="YAKUtime">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3063/3063822.png">
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    
-    <!-- Firebase SDK (ESM) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js";
+</head>
+<body class="bg-slate-50 font-sans text-slate-900 select-none">
 
-        // =========================================================
-        // 【ご提供いただいた設定を反映しました】
-        // =========================================================
+    <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col p-6">
+        <!-- ヘッダー -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-black text-indigo-600 tracking-tighter">YAKUtime <span class="text-sm bg-indigo-100 px-2 py-1 rounded">Pro</span></h1>
+            <p class="text-slate-500 text-sm mt-1">リアルタイム待ち時間管理システム</p>
+        </header>
+
+        <!-- メインカード -->
+        <main class="bg-white rounded-3xl shadow-xl shadow-slate-200 p-8 text-center border border-slate-100 flex-grow">
+            <div class="mb-4">
+                <span class="text-slate-400 text-sm font-bold uppercase tracking-widest">現在の待ち組数</span>
+                <div id="count-display" class="text-8xl font-black text-slate-800 my-2">0</div>
+                <span class="text-slate-400 text-lg font-medium">組</span>
+            </div>
+
+            <div class="bg-indigo-50 rounded-2xl py-4 px-6 mb-8">
+                <p class="text-indigo-700 font-bold">
+                    およその待ち時間: <span id="time-display" class="text-2xl">0</span> 分
+                </p>
+            </div>
+
+            <!-- ボタンエリア -->
+            <div class="grid grid-cols-1 gap-4">
+                <button onclick="handleCheckIn()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xl font-bold py-5 rounded-2xl shadow-lg shadow-indigo-200 transition-all active:scale-95">
+                    受付をする
+                </button>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="handleComplete()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-2xl shadow-md shadow-emerald-100 transition-all active:scale-95">
+                        完了 (-1)
+                    </button>
+                    <button onclick="handleCancel()" class="bg-rose-400 hover:bg-rose-500 text-white font-bold py-4 rounded-2xl shadow-md shadow-rose-100 transition-all active:scale-95">
+                        取消 (+1)
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- データ分析エリア (管理者向け) -->
+        <footer class="mt-8">
+            <details class="bg-slate-200 rounded-xl overflow-hidden">
+                <summary class="p-3 text-center text-slate-600 font-bold cursor-pointer hover:bg-slate-300 transition-colors">
+                    本日の分析データを表示
+                </summary>
+                <div class="p-4 bg-white border-t border-slate-200 space-y-3 text-sm">
+                    <div class="flex justify-between"><span>本日の総受付数:</span><span id="stat-total" class="font-bold">0 件</span></div>
+                    <div class="flex justify-between"><span>現在の平均待ち時間:</span><span id="stat-avg" class="font-bold">0 分</span></div>
+                    <p class="text-xs text-slate-400 mt-2">※データはFirestoreのlogsコレクションに蓄積されています。</p>
+                </div>
+            </details>
+        </footer>
+
+        <!-- QRコードモーダル -->
+        <div id="qr-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-6 z-50">
+            <div class="bg-white rounded-3xl p-8 w-full max-w-xs text-center shadow-2xl">
+                <h2 class="text-xl font-bold mb-4">スマホで待ち時間を確認</h2>
+                <div id="qrcode" class="flex justify-center mb-6"></div>
+                <button onclick="closeModal()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+        // --- あなたのFirebase設定をここに貼り付けてください ---
         const firebaseConfig = {
-            apiKey: "AIzaSyAjSZkIuGQ4oRoMcZYLaZbdBXK45cBBXos",
-            authDomain: "yakutime-for-ipad.firebaseapp.com",
-            projectId: "yakutime-for-ipad",
-            storageBucket: "yakutime-for-ipad.firebasestorage.app",
-            messagingSenderId: "732724570588",
-            appId: "1:732724570588:web:6e64cba96c6fd17646c719",
-            measurementId: "G-0M86E87K2X"
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
         };
+        // --------------------------------------------------
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        // ドキュメントのパスを固定
-        const counterDocRef = doc(db, "settings", "counter");
 
-        let count = 0;
-        let lastUpdateTime = Date.now();
-        const AUTO_REDUCE_TIME = 30 * 60 * 1000; // 30分
+        // 状態管理
+        let currentCount = 0;
+        const timePerPerson = 15; // 1人あたりの待ち時間設定
 
-        const countEl = document.getElementById('countDisplay');
-        const timeEl = document.getElementById('timeDisplay');
-        const statusSec = document.getElementById('statusSection');
-        const qrDiv = document.getElementById('qrcode');
-        const autoNoticeEl = document.getElementById('autoNotice');
-
-        // Firestoreのリアルタイム同期監視
-        onSnapshot(counterDocRef, (docSnap) => {
+        // リアルタイム監視（現在の数）
+        onSnapshot(doc(db, "status", "waiting"), (docSnap) => {
             if (docSnap.exists()) {
-                const data = docSnap.data();
-                count = data.currentCount || 0;
-                lastUpdateTime = data.lastUpdatedAt ? data.lastUpdatedAt.toMillis() : Date.now();
-                updateView();
+                currentCount = docSnap.data().count || 0;
+                updateDisplay();
+                updateStats(); // 統計も更新
             } else {
-                // 初期データ作成
-                saveToFirestore(0);
+                setDoc(doc(db, "status", "waiting"), { count: 0 });
             }
-        }, (error) => {
-            console.error("Firestore接続エラー: ルールを確認してください", error);
         });
 
-        async function saveToFirestore(newCount) {
-            try {
-                await setDoc(counterDocRef, {
-                    currentCount: newCount,
-                    lastUpdatedAt: serverTimestamp()
-                }, { merge: true });
-            } catch (e) {
-                console.error("保存失敗: ", e);
-            }
+        // 表示の更新
+        function updateDisplay() {
+            document.getElementById('count-display').innerText = currentCount;
+            document.getElementById('time-display').innerText = currentCount * timePerPerson;
         }
 
-        window.handleCheckIn = function() {
-            change(1);
-            showQR();
-        }
-
-        window.change = function(n) {
-            const nextCount = Math.max(0, count + n);
-            saveToFirestore(nextCount);
-            
-            countEl.classList.remove('pop');
-            void countEl.offsetWidth; 
-            countEl.classList.add('pop');
-            
-            if (navigator.vibrate) navigator.vibrate(n > 0 ? [30, 20, 30] : 10);
-        }
-
-        function updateView() {
-            countEl.innerText = count;
-            timeEl.innerText = count * 15;
-            
-            statusSec.classList.remove('warning', 'danger');
-            if (count >= 10) statusSec.classList.add('danger');
-            else if (count >= 5) statusSec.classList.add('warning');
-        }
-
-        window.showQR = function() {
-            qrDiv.innerHTML = ""; 
-            new QRCode(qrDiv, { 
-                text: window.location.href, 
-                width: 200, height: 200,
-                colorDark : "#1e293b",
-                colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.H
+        // 受付処理 (ログ追加 + カウント増)
+        window.handleCheckIn = async () => {
+            const newCount = currentCount + 1;
+            // 1. カウント更新
+            await setDoc(doc(db, "status", "waiting"), { count: newCount });
+            // 2. 個別ログ追加
+            await addDoc(collection(db, "logs"), {
+                timestamp: serverTimestamp(),
+                status: "waiting", // waiting -> completed
+                checkInTime: serverTimestamp(),
+                checkOutTime: null,
+                waitMinutes: null
             });
-            document.getElementById('qrModal').style.display = 'flex';
-        }
+            showQR();
+        };
 
-        window.closeModal = function() {
-            document.getElementById('qrModal').style.display = 'none';
-        }
+        // 完了処理 (一番古い待ち人を完了にする)
+        window.handleComplete = async () => {
+            if (currentCount <= 0) return;
 
-        setInterval(() => {
-            if (count > 0) {
-                const now = Date.now();
-                const diff = now - lastUpdateTime;
-                const remaining = Math.max(0, Math.ceil((AUTO_REDUCE_TIME - diff) / 1000 / 60));
-                autoNoticeEl.innerText = `無操作で ${remaining} 分後に自動減少`;
-                if (diff >= AUTO_REDUCE_TIME) window.change(-1);
-            } else {
-                autoNoticeEl.innerText = "";
+            // 1. カウント更新
+            await setDoc(doc(db, "status", "waiting"), { count: currentCount - 1 });
+
+            // 2. ログ更新（一番古い「待ち」の人を探す）
+            const q = query(collection(db, "logs"), where("status", "==", "waiting"), orderBy("timestamp", "asc"), limit(1));
+            const querySnapshot = await getDocs(q);
+            
+            if (!querySnapshot.empty) {
+                const oldestDoc = querySnapshot.docs[0];
+                const data = oldestDoc.data();
+                const now = new Date();
+                const checkIn = data.checkInTime.toDate();
+                const diffMs = now - checkIn;
+                const diffMins = Math.round(diffMs / 60000);
+
+                await updateDoc(doc(db, "logs", oldestDoc.id), {
+                    status: "completed",
+                    checkOutTime: serverTimestamp(),
+                    waitMinutes: diffMins
+                });
             }
-        }, 60000);
+        };
+
+        // 取消処理
+        window.handleCancel = async () => {
+            await setDoc(doc(db, "status", "waiting"), { count: currentCount + 1 });
+        };
+
+        // 統計情報の更新
+        async function updateStats() {
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            // 本日の全受付
+            const qAll = query(collection(db, "logs"), where("timestamp", ">=", today));
+            const snapAll = await getDocs(qAll);
+            document.getElementById('stat-total').innerText = `${snapAll.size} 件`;
+
+            // 本日の平均待ち時間（完了分のみ）
+            const qDone = query(collection(db, "logs"), where("status", "==", "completed"), where("timestamp", ">=", today));
+            const snapDone = await getDocs(qDone);
+            
+            if (snapDone.size > 0) {
+                let totalMin = 0;
+                snapDone.forEach(d => totalMin += (d.data().waitMinutes || 0));
+                const avg = Math.round(totalMin / snapDone.size);
+                document.getElementById('stat-avg').innerText = `${avg} 分`;
+            } else {
+                document.getElementById('stat-avg').innerText = `--- 分`;
+            }
+        }
+
+        // QRコード表示
+        function showQR() {
+            const modal = document.getElementById('qr-modal');
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = "";
+            new QRCode(qrContainer, {
+                text: window.location.href,
+                width: 200,
+                height: 200
+            });
+            modal.classList.remove('hidden');
+        }
+
+        window.closeModal = () => {
+            document.getElementById('qr-modal').classList.add('hidden');
+        };
     </script>
-
-    <style>
-        :root { --primary: #10b981; --primary-dark: #059669; --bg: #f8fafc; --text-main: #1e293b; --text-muted: #64748b; }
-        html, body { height: 100%; margin: 0; padding: 0; background-color: var(--bg); font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
-        .app-container { width: 100%; max-width: 500px; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 40px 20px; box-sizing: border-box; }
-        .header h1 { font-size: 36px; font-weight: 800; color: var(--text-main); margin: 0; }
-        .header p { font-size: 18px; color: var(--text-muted); text-align: center; margin-top: 10px; }
-        .card { width: 100%; background: white; border-radius: 48px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05); overflow: hidden; border: 1px solid rgba(0,0,0,0.03); }
-        .display-section { background: var(--primary); color: white; padding: 50px 20px; text-align: center; transition: 0.4s; }
-        .count { font-size: 140px; font-weight: 900; line-height: 1; }
-        .estimate { font-size: 24px; font-weight: 600; }
-        .button-section { padding: 30px; text-align: center; }
-        .btn-main { width: 100%; background: var(--primary-dark); color: white; border: none; padding: 30px; border-radius: 32px; font-size: 32px; font-weight: 800; cursor: pointer; box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.2); transition: 0.1s; }
-        .btn-main:active { transform: scale(0.97); }
-        #qrModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(8px); }
-        .modal-content { background: white; padding: 40px; border-radius: 40px; text-align: center; width: 85%; max-width: 400px; }
-        .close-btn { margin-top: 20px; background: var(--primary); border: none; padding: 15px 40px; border-radius: 20px; font-size: 18px; color: white; cursor: pointer; }
-        .btn-staff { background: white; border: 1px solid #e2e8f0; color: #94a3b8; padding: 12px 24px; border-radius: 100px; cursor: pointer; }
-        .warning { background-color: #f59e0b !important; }
-        .danger { background-color: #ef4444 !important; }
-        .pop { animation: pop-anim 0.3s; }
-        @keyframes pop-anim { 50% { transform: scale(1.1); } }
-        #autoNotice { font-size: 11px; color: var(--text-muted); margin-top: 5px; height: 15px; }
-    </style>
-</head>
-<body>
-    <div class="app-container">
-        <div class="header">
-            <h1>YAKUtime</h1>
-            <p>処方箋をお出しになる前に<br>「受付」をお願いします</p>
-        </div>
-
-        <div class="card">
-            <div id="statusSection" class="display-section">
-                <div id="countDisplay" class="count">0</div>
-                <div class="estimate">約 <span id="timeDisplay">0</span> 分待ち</div>
-            </div>
-            <div class="button-section">
-                <button onclick="handleCheckIn()" class="btn-main">受付はこちら</button>
-            </div>
-        </div>
-
-        <div class="staff-section">
-            <div style="text-align:center">
-                <button onclick="change(-1)" class="btn-staff">スタッフ管理: 完了 (-1)</button>
-                <div id="autoNotice"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="qrModal">
-        <div class="modal-content">
-            <h2 style="margin:0;">受付完了</h2>
-            <p style="color:var(--text-muted);">スマホで読み取ると待ち時間を<br>どこでも確認できます</p>
-            <div id="qrcode"></div>
-            <button class="close-btn" onclick="closeModal()">閉じる</button>
-        </div>
-    </div>
 </body>
 </html>
