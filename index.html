@@ -10,9 +10,9 @@
     <meta name="apple-mobile-web-app-title" content="YAKUtime">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3063/3063822.png">
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- QRCodeライブラリを確実に読み込む -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        /* タップ時の青い枠を消す */
         * { -webkit-tap-highlight-color: transparent; }
         .no-select { user-select: none; }
         details summary::-webkit-details-marker { display:none; }
@@ -42,13 +42,13 @@
             </div>
 
             <!-- 受付ボタン (メイン) -->
-            <button onclick="handleCheckIn()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-2xl font-black py-8 rounded-[2rem] shadow-xl shadow-indigo-200 transition-all active:scale-95 mb-10">
+            <button id="checkin-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-2xl font-black py-8 rounded-[2rem] shadow-xl shadow-indigo-200 transition-all active:scale-95 mb-10">
                 受付をする
             </button>
             
             <!-- 管理者用ボタンエリア -->
             <div class="border-t border-slate-100 pt-8 text-center">
-                <button onclick="handleComplete()" class="w-2/3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 text-sm inline-flex items-center justify-center gap-2">
+                <button id="complete-btn" class="w-2/3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 text-sm inline-flex items-center justify-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>
@@ -74,8 +74,7 @@
                         <span id="stat-avg" class="font-black text-lg text-indigo-600">0 分</span>
                     </div>
                     <p class="text-[10px] text-slate-400 leading-tight">
-                        ※「受付」から「完了処理」までの実測平均です。<br>
-                        ※データはFirestoreへ秒単位で蓄積されています。
+                        ※「受付」から「完了処理」までの実測平均です。
                     </p>
                 </div>
             </details>
@@ -91,10 +90,13 @@
                 <p class="text-slate-500 text-sm mb-6 leading-relaxed">QRコードを読み取ると、外出先からでも待ち時間を確認できます。</p>
                 
                 <div class="flex justify-center mb-8 p-4 bg-slate-50 rounded-3xl inline-block mx-auto">
-                    <div id="qrcode"></div>
+                    <!-- QRコードがここに生成される -->
+                    <div id="qrcode-wrapper">
+                        <div id="qrcode"></div>
+                    </div>
                 </div>
                 
-                <button onclick="closeModal()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-black py-4 rounded-2xl transition-colors">
+                <button id="close-modal-btn" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-black py-4 rounded-2xl transition-colors">
                     閉じる
                 </button>
             </div>
@@ -106,7 +108,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-        // --- あなたのFirebase設定をここに貼り付けてください ---
+        // --- あなたのFirebase設定 ---
         const firebaseConfig = {
             apiKey: "YOUR_API_KEY",
             authDomain: "YOUR_AUTH_DOMAIN",
@@ -115,7 +117,7 @@
             messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
             appId: "YOUR_APP_ID"
         };
-        // --------------------------------------------------
+        // -------------------------
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -123,91 +125,81 @@
         let currentCount = 0;
         const timePerPerson = 15;
 
-        // リアルタイム監視
+        // 監視
         onSnapshot(doc(db, "status", "waiting"), (docSnap) => {
             if (docSnap.exists()) {
                 currentCount = docSnap.data().count || 0;
-                updateDisplay();
+                document.getElementById('count-display').innerText = currentCount;
+                document.getElementById('time-display').innerText = currentCount * timePerPerson;
                 updateStats();
-            } else {
-                setDoc(doc(db, "status", "waiting"), { count: 0 });
             }
         });
 
-        function updateDisplay() {
-            document.getElementById('count-display').innerText = currentCount;
-            document.getElementById('time-display').innerText = currentCount * timePerPerson;
-        }
-
-        // 受付処理
-        window.handleCheckIn = async () => {
-            const nextCount = currentCount + 1;
+        // 受付
+        document.getElementById('checkin-btn').onclick = async () => {
             try {
-                await setDoc(doc(db, "status", "waiting"), { count: nextCount });
+                await setDoc(doc(db, "status", "waiting"), { count: currentCount + 1 });
                 await addDoc(collection(db, "logs"), {
                     timestamp: serverTimestamp(),
                     status: "waiting",
-                    checkInTime: serverTimestamp(),
-                    checkOutTime: null,
-                    waitMinutes: null
+                    checkInTime: serverTimestamp()
                 });
                 showQR();
-            } catch (e) {
-                console.error("Check-in Error: ", e);
-            }
+            } catch (e) { console.error(e); }
         };
 
-        // 完了処理
-        window.handleComplete = async () => {
+        // 完了
+        document.getElementById('complete-btn').onclick = async () => {
             if (currentCount <= 0) return;
             try {
                 await setDoc(doc(db, "status", "waiting"), { count: currentCount - 1 });
-                
-                // 最も古い待ちログを1件取得
                 const q = query(collection(db, "logs"), where("status", "==", "waiting"), orderBy("timestamp", "asc"), limit(1));
                 const snap = await getDocs(q);
-                
                 if (!snap.empty) {
                     const docRef = snap.docs[0];
-                    const startTime = docRef.data().checkInTime.toDate();
-                    const now = new Date();
-                    const diffMins = Math.max(0, Math.round((now - startTime) / 60000));
-
+                    const diff = Math.max(0, Math.round((new Date() - docRef.data().checkInTime.toDate()) / 60000));
                     await updateDoc(doc(db, "logs", docRef.id), {
                         status: "completed",
                         checkOutTime: serverTimestamp(),
-                        waitMinutes: diffMins
+                        waitMinutes: diff
                     });
                 }
-            } catch (e) {
-                console.error("Completion Error: ", e);
-            }
+            } catch (e) { console.error(e); }
         };
 
-        // QRコード表示
+        // QR生成表示
         function showQR() {
-            const qrContainer = document.getElementById('qrcode');
-            qrContainer.innerHTML = "";
-            new QRCode(qrContainer, {
-                text: window.location.href,
-                width: 180,
-                height: 180,
-                colorDark : "#1e293b",
-                colorLight : "#f8fafc",
-                correctLevel : QRCode.CorrectLevel.H
-            });
-            document.getElementById('qr-modal').classList.remove('hidden');
+            const modal = document.getElementById('qr-modal');
+            const qrDiv = document.getElementById('qrcode');
+            
+            // 以前のQRを消去
+            qrDiv.innerHTML = "";
+            modal.classList.remove('hidden');
+
+            // モーダルが表示されてから描画する
+            setTimeout(() => {
+                try {
+                    new QRCode(qrDiv, {
+                        text: window.location.href,
+                        width: 180,
+                        height: 180,
+                        colorDark : "#1e293b",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.H
+                    });
+                } catch (err) {
+                    console.error("QR生成エラー:", err);
+                }
+            }, 100);
         }
 
-        window.closeModal = () => {
+        document.getElementById('close-modal-btn').onclick = () => {
             document.getElementById('qr-modal').classList.add('hidden');
         };
 
-        // 統計更新
         async function updateStats() {
             const today = new Date();
             today.setHours(0,0,0,0);
-
             try {
                 const qAll = query(collection(db, "logs"), where("timestamp", ">=", today));
                 const snapAll = await getDocs(qAll);
@@ -215,7 +207,6 @@
 
                 const qDone = query(collection(db, "logs"), where("status", "==", "completed"), where("timestamp", ">=", today));
                 const snapDone = await getDocs(qDone);
-                
                 if (snapDone.size > 0) {
                     let total = 0;
                     snapDone.forEach(d => total += (d.data().waitMinutes || 0));
@@ -223,9 +214,7 @@
                 } else {
                     document.getElementById('stat-avg').innerText = "--- 分";
                 }
-            } catch (e) {
-                console.log("Stats refresh skipped.");
-            }
+            } catch (e) {}
         }
     </script>
 </body>
