@@ -34,17 +34,18 @@
                     <p class="text-slate-400 font-bold">次にお呼びする番号: <span id="admin-next-num" class="text-indigo-600">---</span> 番</p>
                 </div>
                 
-                <button id="checkin-btn" class="w-full bg-indigo-600 text-white text-2xl font-black py-8 rounded-[2rem] shadow-xl active:scale-95 mb-8 transition-all">
+                <button id="checkin-btn" class="w-full bg-indigo-600 text-white text-2xl font-black py-8 rounded-[2rem] shadow-xl active:scale-95 mb-10 transition-all">
                     受付をする
                 </button>
 
-                <div class="border-t border-slate-100 pt-8 flex flex-col gap-4">
-                    <button id="complete-btn" class="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-md active:scale-95 flex items-center justify-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div class="border-t border-slate-100 pt-8 text-center">
+                    <button id="complete-btn" class="w-2/3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-md active:scale-95 text-sm inline-flex items-center justify-center gap-2 transition-all">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                         </svg>
-                        呼び出し完了 (次の方へ)
+                        完了
                     </button>
+                    <p class="text-[10px] text-slate-400 mt-3 font-bold italic font-sans uppercase">※スタッフ専用（管理者用）</p>
                 </div>
             </main>
         </div>
@@ -86,13 +87,13 @@
                 </div>
 
                 <div id="call-alert" class="mt-8 hidden animate-bounce">
-                    <div class="bg-amber-100 border-2 border-amber-400 p-4 rounded-2xl text-center">
+                    <div class="bg-amber-100 border-2 border-amber-400 p-4 rounded-2xl text-center shadow-lg">
                         <p class="text-amber-800 font-black text-lg">✨ お待たせいたしました！</p>
                         <p class="text-amber-700 text-sm">窓口までお越しください。</p>
                     </div>
                 </div>
 
-                <div class="mt-8 p-4 bg-slate-100 rounded-2xl text-center">
+                <div class="mt-8 p-4 bg-slate-100 rounded-2xl text-center border border-slate-200">
                     <p class="text-slate-500 text-xs leading-relaxed">この画面は自動で更新されます。<br>ブラウザを閉じずにそのままお待ちください。</p>
                 </div>
             </main>
@@ -105,7 +106,7 @@
                 <p class="text-slate-400 text-sm mb-4">受付番号: <span id="new-ticket-num" class="text-slate-800 font-bold">---</span></p>
                 <div class="flex justify-center my-6 p-4 bg-slate-50 rounded-3xl" id="qrcode"></div>
                 <p class="text-slate-500 text-xs mb-6">このQRをスマホで読み取ると<br>待ち時間が確認できます</p>
-                <button id="close-modal-btn" class="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl shadow-lg">次の方へ</button>
+                <button id="close-modal-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all">戻る</button>
             </div>
         </div>
     </div>
@@ -114,6 +115,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
+        // Firebase構成
         const firebaseConfig = {
             apiKey: "AIzaSyAjSZkIuGQ4oRoMcZYLaZbdBXK45cBBXos",
             authDomain: "yakutime-for-ipad.firebaseapp.com",
@@ -129,7 +131,6 @@
 
         const urlParams = new URLSearchParams(window.location.search);
         const isAdmin = urlParams.get('mode') === 'admin';
-        // 患者用：URLから自分の番号を取得 (?no=15 など)
         const myNumber = parseInt(urlParams.get('no')) || null;
 
         if (isAdmin) {
@@ -145,33 +146,35 @@
         onSnapshot(doc(db, "status", "waiting"), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const totalIssued = data.totalIssued || 0; // 今日発行された最大の番号
-                const callingNow = data.callingNow || 0;  // 現在呼び出し中の番号
+                const totalIssued = data.totalIssued || 0;
+                const callingNow = data.callingNow || 0;
                 
-                // スタッフ表示
                 if (isAdmin) {
-                    document.getElementById('admin-count').innerText = totalIssued - callingNow;
+                    document.getElementById('admin-count').innerText = Math.max(0, totalIssued - callingNow);
                     document.getElementById('admin-next-num').innerText = callingNow + 1;
                 }
                 
-                // 患者表示
                 if (!isAdmin && myNumber) {
                     const waitCount = Math.max(0, myNumber - callingNow - 1);
                     document.getElementById('patient-wait-count').innerText = waitCount;
                     document.getElementById('patient-wait-time').innerText = waitCount * timePerPerson;
 
-                    // 呼び出し判定
                     const alertBox = document.getElementById('call-alert');
                     const badge = document.getElementById('status-badge');
                     if (myNumber <= callingNow) {
                         alertBox.classList.remove('hidden');
                         badge.innerText = "お呼び出し中";
-                        badge.classList.replace('bg-white/20', 'bg-emerald-500');
+                        badge.classList.remove('bg-white/20');
+                        badge.classList.add('bg-emerald-500');
                         document.getElementById('patient-wait-count').innerText = "0";
+                    } else {
+                        alertBox.classList.add('hidden');
+                        badge.innerText = "待機中";
+                        badge.classList.add('bg-white/20');
+                        badge.classList.remove('bg-emerald-500');
                     }
                 }
             } else {
-                // 初期化
                 setDoc(doc(db, "status", "waiting"), { totalIssued: 0, callingNow: 0 });
             }
         });
@@ -179,17 +182,15 @@
         // 受付処理 (iPad)
         document.getElementById('checkin-btn').onclick = async () => {
             try {
-                // 最新の番号を取得
                 const snap = await getDoc(doc(db, "status", "waiting"));
                 const nextNo = (snap.data().totalIssued || 0) + 1;
 
-                // QR表示
                 const qrDiv = document.getElementById('qrcode');
                 qrDiv.innerHTML = "";
                 document.getElementById('new-ticket-num').innerText = nextNo;
                 document.getElementById('qr-modal').classList.remove('hidden');
 
-                // 患者用URLに番号を付与
+                // 患者用URL（管理モードを含めない）
                 const patientUrl = window.location.origin + window.location.pathname + "?no=" + nextNo;
 
                 setTimeout(() => {
@@ -203,7 +204,6 @@
                     });
                 }, 50);
 
-                // DB更新
                 await updateDoc(doc(db, "status", "waiting"), { totalIssued: nextNo });
                 await addDoc(collection(db, "logs"), {
                     timestamp: serverTimestamp(),
@@ -220,13 +220,12 @@
             const currentCalling = snap.data().callingNow || 0;
             const totalIssued = snap.data().totalIssued || 0;
 
-            if (currentCalling >= totalIssued) return; // 待機者なし
+            if (currentCalling >= totalIssued) return;
 
             try {
                 const nextCalling = currentCalling + 1;
                 await updateDoc(doc(db, "status", "waiting"), { callingNow: nextCalling });
                 
-                // ログの更新
                 const q = query(collection(db, "logs"), where("ticketNo", "==", nextCalling), limit(1));
                 const logSnap = await getDocs(q);
                 if (!logSnap.empty) {
