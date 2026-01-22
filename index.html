@@ -10,13 +10,16 @@
     <meta name="apple-mobile-web-app-title" content="YAKUtime">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3063/3063822.png">
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 安定したQR生成ライブラリ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         * { -webkit-tap-highlight-color: transparent; }
         .no-select { user-select: none; }
         details summary::-webkit-details-marker { display:none; }
-        /* PWAとしてホーム画面に追加した際のスクロール抑制 */
         body { position: fixed; width: 100%; height: 100%; overflow: hidden; }
         #app { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        /* QRコードのコンテナを中央揃えに */
+        #qrcode-container img { margin: 0 auto; display: block; border: 8px solid white; border-radius: 12px; }
     </style>
 </head>
 <body class="bg-slate-50 font-sans text-slate-900 no-select">
@@ -42,7 +45,7 @@
                 </p>
             </div>
 
-            <!-- 受付ボタン (メイン) -->
+            <!-- 受付ボタン -->
             <button id="checkin-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-2xl font-black py-8 rounded-[2rem] shadow-xl shadow-indigo-200 transition-all active:scale-95 mb-10">
                 受付をする
             </button>
@@ -74,9 +77,6 @@
                         <span class="text-slate-500">実績平均待ち時間</span>
                         <span id="stat-avg" class="font-black text-lg text-indigo-600">0 分</span>
                     </div>
-                    <p class="text-[10px] text-slate-400 leading-tight pt-2 border-t border-slate-50">
-                        ※「受付」から「完了処理」までの実測平均です。
-                    </p>
                 </div>
             </details>
         </footer>
@@ -88,10 +88,11 @@
                     <span class="bg-indigo-100 text-indigo-600 text-xs font-bold px-3 py-1 rounded-full">受付完了</span>
                 </div>
                 <h2 class="text-2xl font-black text-slate-800 mb-2">順番をスマホで確認</h2>
-                <p class="text-slate-500 text-sm mb-6">QRコードを読み取ると、外出先からでも待ち時間を確認できます。</p>
+                <p class="text-slate-500 text-sm mb-6 leading-relaxed">QRコードを読み取ると、外出先からでも待ち時間を確認できます。</p>
                 
-                <div class="flex justify-center mb-8 p-4 bg-slate-50 rounded-3xl">
-                    <img id="qr-image" src="" alt="QR Code" class="w-48 h-48">
+                <div class="flex justify-center mb-8 p-4 bg-slate-50 rounded-3xl mx-auto inline-block">
+                    <!-- ライブラリによって描画されるエリア -->
+                    <div id="qrcode-container"></div>
                 </div>
                 
                 <button id="close-modal-btn" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-black py-4 rounded-2xl transition-colors">
@@ -101,12 +102,10 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-        // あなたのFirebase設定を適用済み
         const firebaseConfig = {
             apiKey: "AIzaSyAjSZkIuGQ4oRoMcZYLaZbdBXK45cBBXos",
             authDomain: "yakutime-for-ipad.firebaseapp.com",
@@ -123,97 +122,87 @@
         let currentCount = 0;
         const timePerPerson = 15;
 
-        // リアルタイム同期
+        // 同期
         onSnapshot(doc(db, "status", "waiting"), (docSnap) => {
             if (docSnap.exists()) {
                 currentCount = docSnap.data().count || 0;
                 document.getElementById('count-display').innerText = currentCount;
                 document.getElementById('time-display').innerText = currentCount * timePerPerson;
                 updateStats();
-            } else {
-                setDoc(doc(db, "status", "waiting"), { count: 0 });
             }
         });
 
         // 受付ボタン
         document.getElementById('checkin-btn').onclick = async () => {
             try {
-                // QRコードを画像URLとして生成
-                const currentUrl = encodeURIComponent(window.location.href);
-                document.getElementById('qr-image').src = `https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=${currentUrl}&choe=UTF-8`;
+                // QRコードを内部で生成
+                const qrContainer = document.getElementById('qrcode-container');
+                qrContainer.innerHTML = ""; // 初期化
+                
+                // モーダルを表示
                 document.getElementById('qr-modal').classList.remove('hidden');
 
-                // Firebase更新
+                // 描画（少し時間を置いて確実に実行）
+                setTimeout(() => {
+                    new QRCode(qrContainer, {
+                        text: window.location.href,
+                        width: 180,
+                        height: 180,
+                        colorDark : "#1e293b",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.H
+                    });
+                }, 50);
+
                 await setDoc(doc(db, "status", "waiting"), { count: currentCount + 1 });
                 await addDoc(collection(db, "logs"), {
                     timestamp: serverTimestamp(),
                     status: "waiting",
                     checkInTime: serverTimestamp()
                 });
-            } catch (e) {
-                console.error("受付エラー:", e);
-            }
+            } catch (e) { console.error(e); }
         };
 
-        // 完了処理
         document.getElementById('complete-btn').onclick = async () => {
             if (currentCount <= 0) return;
             try {
-                // カウントを減らす
                 await setDoc(doc(db, "status", "waiting"), { count: currentCount - 1 });
-                
-                // 最も古い待ち状態のログを取得
                 const q = query(collection(db, "logs"), where("status", "==", "waiting"), orderBy("timestamp", "asc"), limit(1));
                 const snap = await getDocs(q);
-                
                 if (!snap.empty) {
                     const docRef = snap.docs[0];
-                    const startTime = docRef.data().checkInTime.toDate();
-                    const now = new Date();
-                    const diff = Math.max(0, Math.round((now - startTime) / 60000));
-                    
-                    // ログを完了状態に更新（待ち時間を記録）
+                    const diff = Math.max(0, Math.round((new Date() - docRef.data().checkInTime.toDate()) / 60000));
                     await updateDoc(doc(db, "logs", docRef.id), {
                         status: "completed",
                         checkOutTime: serverTimestamp(),
                         waitMinutes: diff
                     });
                 }
-            } catch (e) {
-                console.error("完了処理エラー:", e);
-            }
+            } catch (e) { console.error(e); }
         };
 
-        // モーダル閉じる
         document.getElementById('close-modal-btn').onclick = () => {
             document.getElementById('qr-modal').classList.add('hidden');
         };
 
-        // 統計情報の集計
         async function updateStats() {
             const today = new Date();
             today.setHours(0,0,0,0);
             try {
-                // 今日の総受付数
                 const qAll = query(collection(db, "logs"), where("timestamp", ">=", today));
                 const snapAll = await getDocs(qAll);
                 document.getElementById('stat-total').innerText = `${snapAll.size} 件`;
 
-                // 実績平均待ち時間
                 const qDone = query(collection(db, "logs"), where("status", "==", "completed"), where("timestamp", ">=", today));
                 const snapDone = await getDocs(qDone);
-                
                 if (snapDone.size > 0) {
-                    let totalTime = 0;
-                    snapDone.forEach(d => totalTime += (d.data().waitMinutes || 0));
-                    const avg = Math.round(totalTime / snapDone.size);
-                    document.getElementById('stat-avg').innerText = `${avg} 分`;
+                    let total = 0;
+                    snapDone.forEach(d => total += (d.data().waitMinutes || 0));
+                    document.getElementById('stat-avg').innerText = `${Math.round(total / snapDone.size)} 分`;
                 } else {
                     document.getElementById('stat-avg').innerText = "--- 分";
                 }
-            } catch (e) {
-                console.log("統計更新待ち...");
-            }
+            } catch (e) {}
         }
     </script>
 </body>
