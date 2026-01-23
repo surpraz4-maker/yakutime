@@ -15,14 +15,8 @@
         .patient-gradient { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
         .glass-card { background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
         
-        /* 長押しアニメーション */
-        @keyframes progress {
-            from { width: 0%; }
-            to { width: 100%; }
-        }
-        .holding #progress-bar {
-            animation: progress 3s linear forwards;
-        }
+        @keyframes progress { from { width: 0%; } to { width: 100%; } }
+        .holding #progress-bar { animation: progress 3s linear forwards; }
     </style>
 </head>
 <body class="no-select">
@@ -56,11 +50,16 @@
                     <p class="text-slate-400 font-bold">次にお呼びする番号: <span id="admin-next-num" class="text-indigo-600">---</span> 番</p>
                 </div>
                 
-                <button id="checkin-btn" class="w-full bg-indigo-600 text-white text-2xl font-black py-8 rounded-[2rem] shadow-xl active:scale-95 mb-10 transition-all">
+                <button id="checkin-btn" class="w-full bg-indigo-600 text-white text-2xl font-black py-8 rounded-[2rem] shadow-xl active:scale-95 transition-all">
                     受付をする
                 </button>
+                
+                <!-- 管理者画面：免責事項 -->
+                <p class="text-[10px] text-slate-400 mt-4 leading-relaxed px-4">
+                    ※待ち組数・時間は目安であり調剤内容・予約等で前後する場合があります。
+                </p>
 
-                <div class="border-t border-slate-100 pt-8 text-center">
+                <div class="border-t border-slate-100 mt-8 pt-8 text-center">
                     <button id="complete-btn" class="w-2/3 bg-emerald-500 text-white font-bold py-4 rounded-xl shadow-md active:scale-95 text-sm inline-flex items-center justify-center gap-2">
                         完了
                     </button>
@@ -106,6 +105,13 @@
                         <p class="text-amber-800 font-black text-xl mb-1">✨ お待たせいたしました！</p>
                         <p class="text-amber-700 text-sm font-medium">窓口までお越しください。</p>
                     </div>
+                </div>
+                
+                <!-- 患者画面：免責事項 -->
+                <div class="mt-12 px-4">
+                    <p class="text-[10px] text-slate-400 text-center leading-relaxed">
+                        ※待ち組数・時間は目安であり、お薬の種類や調剤内容、<br>ご予約状況等によって前後する場合があります。あらかじめご了承ください。
+                    </p>
                 </div>
             </main>
         </div>
@@ -175,7 +181,6 @@
             }
         });
 
-        // 受付・完了ロジック (省略なし)
         document.getElementById('checkin-btn').onclick = async () => {
             const snap = await getDoc(doc(db, "status", "waiting"));
             const nextNo = (snap.data().totalIssued || 0) + 1;
@@ -203,7 +208,6 @@
             }
         };
 
-        // リセットボタン（長押し3秒）
         const resetBtn = document.getElementById('reset-trigger-btn');
         let resetTimer;
 
@@ -218,10 +222,7 @@
             }, 3000);
         };
 
-        const cancelReset = () => {
-            clearTimeout(resetTimer);
-            resetBtn.classList.remove('holding');
-        };
+        const cancelReset = () => { clearTimeout(resetTimer); resetBtn.classList.remove('holding'); };
 
         resetBtn.addEventListener('mousedown', startReset);
         resetBtn.addEventListener('touchstart', startReset);
