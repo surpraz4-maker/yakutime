@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>YAKUtime Pro - 順番案内</title>
+    <title>YAKUtime Pro - 順番案内 (Ver2)</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -34,7 +34,7 @@
                 </button>
                 <div>
                     <h1 class="text-3xl font-black text-indigo-600 tracking-tighter">YAKUtime <span class="text-xs bg-indigo-100 px-2 py-1 rounded align-middle">PRO</span></h1>
-                    <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Staff Management</p>
+                    <p id="store-label" class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Staff Management</p>
                 </div>
                 <button id="csv-export-btn" class="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 shadow-sm active:scale-90 transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -54,7 +54,6 @@
                     受付をする
                 </button>
                 
-                <!-- 管理者画面：免責事項 -->
                 <p class="text-[10px] text-slate-400 mt-4 leading-relaxed px-4">
                     ※待ち組数・時間は目安であり調剤内容・予約等で前後する場合があります。
                 </p>
@@ -107,7 +106,6 @@
                     </div>
                 </div>
                 
-                <!-- 患者画面：免責事項 -->
                 <div class="mt-12 px-4">
                     <p class="text-[10px] text-slate-400 text-center leading-relaxed">
                         ※待ち組数・時間は目安であり、お薬の種類や調剤内容、<br>ご予約状況等によって前後する場合があります。あらかじめご了承ください。
@@ -130,6 +128,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAjSZkIuGQ4oRoMcZYLaZbdBXK45cBBXos",
@@ -137,19 +136,28 @@
             projectId: "yakutime-for-ipad",
             storageBucket: "yakutime-for-ipad.firebasestorage.app",
             messagingSenderId: "732724570588",
-            appId: "1:732724570588:web:6e64cba96c6fd17646c719",
-            measurementId: "G-0M86E87K2X"
+            appId: "1:732724570588:web:6e64cba96c6fd17646c719"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        const auth = getAuth(app);
+        const APP_ID = "yakutime-v1";
 
+        // URLパラメータの取得
         const urlParams = new URLSearchParams(window.location.search);
         const isAdmin = urlParams.get('mode') === 'admin';
         const myNumber = parseInt(urlParams.get('no')) || null;
+        const shopId = urlParams.get('shopId') || "default-store"; // 店舗ID
 
+        // フォルダ構造の定義
+        const statusDocRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'shops', shopId, 'status', 'waiting');
+        const logsColRef = collection(db, 'artifacts', APP_ID, 'public', 'data', 'shops', shopId, 'logs');
+
+        // 表示の切り替え
         if (isAdmin) {
             document.getElementById('admin-view').classList.remove('hidden');
+            document.getElementById('store-label').innerText = `Shop: ${shopId}`;
         } else {
             document.getElementById('patient-view').classList.remove('hidden');
             if (myNumber) document.getElementById('my-number-display').innerText = myNumber;
@@ -157,57 +165,89 @@
 
         const timePerPerson = 15;
 
-        onSnapshot(doc(db, "status", "waiting"), (docSnap) => {
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                const totalIssued = data.totalIssued || 0;
-                const callingNow = data.callingNow || 0;
-                if (isAdmin) {
-                    document.getElementById('admin-count').innerText = Math.max(0, totalIssued - callingNow);
-                    document.getElementById('admin-next-num').innerText = callingNow + 1;
-                }
-                if (!isAdmin && myNumber) {
-                    const waitCount = Math.max(0, myNumber - callingNow - 1);
-                    document.getElementById('patient-wait-count').innerText = waitCount;
-                    document.getElementById('patient-wait-time').innerText = waitCount * timePerPerson;
-                    const alertBox = document.getElementById('call-alert');
-                    if (myNumber <= callingNow) {
-                        alertBox.classList.remove('hidden');
-                        document.getElementById('status-badge').innerText = "お呼び出し中";
+        // 匿名認証して開始
+        signInAnonymously(auth).then(() => {
+            // リアルタイム更新の監視
+            onSnapshot(statusDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const totalIssued = data.totalIssued || 0;
+                    const callingNow = data.callingNow || 0;
+                    
+                    if (isAdmin) {
+                        document.getElementById('admin-count').innerText = Math.max(0, totalIssued - callingNow);
+                        document.getElementById('admin-next-num').innerText = callingNow + 1;
                     }
+                    
+                    if (!isAdmin && myNumber) {
+                        const waitCount = Math.max(0, myNumber - callingNow - 1);
+                        document.getElementById('patient-wait-count').innerText = waitCount;
+                        document.getElementById('patient-wait-time').innerText = waitCount * timePerPerson;
+                        const alertBox = document.getElementById('call-alert');
+                        if (myNumber <= callingNow) {
+                            alertBox.classList.remove('hidden');
+                            document.getElementById('status-badge').innerText = "お呼び出し中";
+                        } else {
+                            alertBox.classList.add('hidden');
+                            document.getElementById('status-badge').innerText = "待機中";
+                        }
+                    }
+                } else {
+                    setDoc(statusDocRef, { totalIssued: 0, callingNow: 0 });
                 }
-            } else {
-                setDoc(doc(db, "status", "waiting"), { totalIssued: 0, callingNow: 0 });
-            }
+            });
         });
 
+        // 受付ボタン
         document.getElementById('checkin-btn').onclick = async () => {
-            const snap = await getDoc(doc(db, "status", "waiting"));
+            const snap = await getDoc(statusDocRef);
             const nextNo = (snap.data().totalIssued || 0) + 1;
+            
             document.getElementById('new-ticket-num').innerText = nextNo;
             const qrDiv = document.getElementById('qrcode');
             qrDiv.innerHTML = "";
             document.getElementById('qr-modal').classList.remove('hidden');
-            setTimeout(() => { new QRCode(qrDiv, { text: window.location.origin + window.location.pathname + "?no=" + nextNo, width: 180, height: 180 }); }, 50);
-            await updateDoc(doc(db, "status", "waiting"), { totalIssued: nextNo });
-            await addDoc(collection(db, "logs"), { timestamp: serverTimestamp(), status: "waiting", ticketNo: nextNo, checkInTime: serverTimestamp() });
+            
+            // QRコードのURLにも現在のshopIdを引き継ぐ
+            const qrUrl = `${window.location.origin}${window.location.pathname}?shopId=${shopId}&no=${nextNo}`;
+            setTimeout(() => { 
+                new QRCode(qrDiv, { text: qrUrl, width: 180, height: 180 }); 
+            }, 50);
+
+            await updateDoc(statusDocRef, { totalIssued: nextNo });
+            await addDoc(logsColRef, { 
+                timestamp: serverTimestamp(), 
+                status: "waiting", 
+                ticketNo: nextNo, 
+                checkInTime: serverTimestamp() 
+            });
         };
 
+        // 完了ボタン
         document.getElementById('complete-btn').onclick = async () => {
-            const snap = await getDoc(doc(db, "status", "waiting"));
+            const snap = await getDoc(statusDocRef);
             const currentCalling = snap.data().callingNow || 0;
             if (currentCalling >= snap.data().totalIssued) return;
+            
             const nextCalling = currentCalling + 1;
-            await updateDoc(doc(db, "status", "waiting"), { callingNow: nextCalling });
-            const q = query(collection(db, "logs"), where("ticketNo", "==", nextCalling), limit(1));
+            await updateDoc(statusDocRef, { callingNow: nextCalling });
+            
+            // ログの更新
+            const q = query(logsColRef, where("ticketNo", "==", nextCalling), limit(1));
             const logSnap = await getDocs(q);
             if (!logSnap.empty) {
                 const docRef = logSnap.docs[0];
-                const diff = Math.max(0, Math.round((new Date() - docRef.data().checkInTime.toDate()) / 60000));
-                await updateDoc(doc(db, "logs", docRef.id), { status: "completed", checkOutTime: serverTimestamp(), waitMinutes: diff });
+                const checkInTime = docRef.data().checkInTime?.toDate() || new Date();
+                const diff = Math.max(0, Math.round((new Date() - checkInTime) / 60000));
+                await updateDoc(doc(db, logsColRef.path, docRef.id), { 
+                    status: "completed", 
+                    checkOutTime: serverTimestamp(), 
+                    waitMinutes: diff 
+                });
             }
         };
 
+        // リセット処理
         const resetBtn = document.getElementById('reset-trigger-btn');
         let resetTimer;
 
@@ -215,7 +255,7 @@
             resetBtn.classList.add('holding');
             resetTimer = setTimeout(async () => {
                 if (confirm("本日の待ち組数をリセットして、1番から開始しますか？")) {
-                    await setDoc(doc(db, "status", "waiting"), { totalIssued: 0, callingNow: 0 });
+                    await setDoc(statusDocRef, { totalIssued: 0, callingNow: 0 });
                     alert("リセットが完了しました。");
                 }
                 resetBtn.classList.remove('holding');
@@ -230,21 +270,30 @@
         resetBtn.addEventListener('mouseleave', cancelReset);
         resetBtn.addEventListener('touchend', cancelReset);
 
+        // CSVエクスポート
         document.getElementById('csv-export-btn').onclick = async () => {
             const today = new Date(); today.setHours(0,0,0,0);
-            const q = query(collection(db, "logs"), where("timestamp", ">=", today), orderBy("timestamp", "asc"));
+            const q = query(logsColRef, where("timestamp", ">=", today), orderBy("timestamp", "asc"));
             const snap = await getDocs(q);
+            
             let csv = "\uFEFF受付番号,受付時刻,完了時刻,待ち時間(分)\n";
             snap.forEach(d => {
                 const data = d.data();
-                csv += `${data.ticketNo},${data.checkInTime?.toDate().toLocaleTimeString()},${data.checkOutTime?.toDate().toLocaleTimeString()},${data.waitMinutes || 0}\n`;
+                const checkIn = data.checkInTime?.toDate().toLocaleTimeString() || "-";
+                const checkOut = data.checkOutTime?.toDate().toLocaleTimeString() || "-";
+                csv += `${data.ticketNo},${checkIn},${checkOut},${data.waitMinutes || 0}\n`;
             });
+            
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-            a.download = `Report_${new Date().toLocaleDateString()}.csv`; a.click();
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `Report_${shopId}_${new Date().toLocaleDateString()}.csv`;
+            a.click();
         };
 
-        document.getElementById('close-modal-btn').onclick = () => { document.getElementById('qr-modal').classList.add('hidden'); };
+        document.getElementById('close-modal-btn').onclick = () => { 
+            document.getElementById('qr-modal').classList.add('hidden'); 
+        };
     </script>
 </body>
 </html>
