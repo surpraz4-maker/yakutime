@@ -7,53 +7,53 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body { background-color: #f0f4f8; font-family: 'Helvetica Neue', Arial, sans-serif; }
-        .btn-shadow { box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.5); }
-        .complete-shadow { box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4); }
+        body { background-color: #f8faff; font-family: 'Inter', sans-serif; }
+        .card-shadow { box-shadow: 0 20px 50px rgba(0,0,0,0.05); }
     </style>
 </head>
-<body class="h-screen flex items-center justify-center p-6">
+<body class="flex items-center justify-center min-h-screen p-4">
 
-    <div class="bg-white w-full max-w-lg rounded-[3rem] shadow-2xl p-10 flex flex-col items-center relative overflow-hidden">
+    <div class="w-full max-w-lg bg-white rounded-[40px] p-10 card-shadow relative overflow-hidden">
         <!-- 背景の装飾 -->
-        <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-right from-blue-500 to-indigo-600"></div>
+        <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
 
-        <!-- ヘッダー -->
-        <div class="mb-10 text-center">
-            <h1 class="text-4xl font-black text-blue-700 mb-2">YAKUtime <span class="bg-blue-100 text-blue-600 px-2 py-1 rounded-lg text-xl align-middle">PRO</span></h1>
-            <p id="shop-name-display" class="text-gray-400 font-bold uppercase tracking-widest text-sm">LOADING...</p>
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-black text-slate-800 mb-2">YAKUtime <span class="text-blue-600 text-2xl">PRO</span></h1>
+            <p id="display-shop-name" class="text-slate-400 font-bold tracking-widest uppercase text-sm">SHOP: LOADING...</p>
+        </header>
+
+        <div class="text-center space-y-8">
+            <div>
+                <p class="text-slate-400 font-bold mb-4">現在の待ち組数</p>
+                <div id="wait-count" class="text-[120px] font-black text-slate-800 leading-none">0</div>
+            </div>
+
+            <div class="pt-6">
+                <button id="btn-reception" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-3xl font-black py-10 rounded-[30px] shadow-2xl shadow-indigo-200 active:scale-95 transition-all">
+                    受付をする
+                </button>
+                <p class="text-slate-400 text-xs mt-6 font-medium leading-relaxed">
+                    ※待ち組数・時間は目安であり調剤内容・予約等で前後する場合があります。
+                </p>
+            </div>
         </div>
 
-        <!-- 待ち人数表示 -->
-        <div class="text-center mb-10">
-            <p class="text-gray-400 font-bold mb-4">現在の待ち組数</p>
-            <div id="count-display" class="text-[120px] font-black text-slate-800 leading-none mb-4">0</div>
-            <p id="next-number" class="text-blue-600 font-bold text-xl">次にお呼びする番号: <span class="text-2xl">1</span> 番</p>
-        </div>
-
-        <!-- メインアクション -->
-        <button id="btn-reception" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-8 rounded-[2rem] text-3xl font-black btn-shadow active:scale-95 transition-all mb-8 flex items-center justify-center gap-4">
-            <i data-lucide="user-plus" class="w-10 h-10"></i>
-            受付をする
-        </button>
-
-        <p class="text-gray-400 text-sm mb-12 text-center leading-relaxed px-6">
-            ※待ち組数・時間は目安であり調剤内容・予約等で前後する場合があります。
-        </p>
-
-        <!-- 管理用ボタン -->
-        <div class="w-full border-t border-gray-100 pt-10 flex flex-col items-center">
-            <button id="btn-complete" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl text-xl font-black complete-shadow active:scale-95 transition-all mb-4">
-                完了
+        <!-- スタッフ用操作パネル (隠し要素) -->
+        <div class="mt-12 pt-8 border-t border-slate-50 flex justify-center gap-4">
+            <button id="btn-minus" class="w-12 h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-300 hover:text-red-500 transition-colors">
+                <i data-lucide="minus"></i>
             </button>
-            <p class="text-gray-300 text-[10px] font-bold uppercase tracking-tighter">※スタッフ専用（管理者用）</p>
+            <button id="btn-plus" class="w-12 h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-300 hover:text-green-500 transition-colors">
+                <i data-lucide="plus"></i>
+            </button>
         </div>
+        <p class="text-center text-[10px] text-slate-300 mt-2 font-bold tracking-widest uppercase">Staff Only</p>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, updateDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAjSZkIuGQ4oRoMcZYLaZbdBXK45cBBXos",
@@ -64,56 +64,50 @@
             appId: "1:732724570588:web:6e64cba96c6fd17646c719"
         };
 
-        const appId = 'yakutime-for-ipad';
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
         const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = 'yakutime-for-ipad';
 
-        // 管理画面（Pro）と共通の店舗IDを使用
-        // 本来はURL引数などで指定可能にする（?shopId=shibuya-001）
+        // URLからshopIdを取得 (例: ?shopId=shibuya-001)
         const urlParams = new URLSearchParams(window.location.search);
-        const currentShopId = urlParams.get('shopId') || localStorage.getItem('yakutime_shop_id') || 'shibuya-001';
-        
-        let currentCount = 0;
+        const shopId = urlParams.get('shopId') || 'shibuya-001'; // 指定がない場合はデフォルト
 
         lucide.createIcons();
 
         async function init() {
             await signInAnonymously(auth);
             
-            const shopRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', currentShopId);
-            
-            // リアルタイム同期
-            onSnapshot(shopRef, (snap) => {
-                if (snap.exists()) {
-                    const data = snap.data();
-                    currentCount = data.status?.waiting?.count || 0;
-                    document.getElementById('count-display').innerText = currentCount;
-                    document.getElementById('shop-name-display').innerText = data.name || currentShopId;
-                    document.getElementById('next-number').querySelector('span').innerText = currentCount + 1;
+            // 修正されたパスでドキュメントを参照
+            const shopRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId);
+
+            // リアルタイム更新の監視
+            onSnapshot(shopRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    document.getElementById('wait-count').innerText = data.status?.waiting?.count || 0;
+                    document.getElementById('display-shop-name').innerText = `SHOP: ${data.name || shopId}`;
+                } else {
+                    document.getElementById('display-shop-name').innerText = "店舗が見つかりません";
                 }
             });
 
-            // 受付ボタン：カウントを＋１
-            document.getElementById('btn-reception').onclick = async () => {
-                await updateDoc(shopRef, {
-                    "status.waiting.count": currentCount + 1,
-                    "status.waiting.updatedAt": serverTimestamp()
-                });
-            };
-
-            // 完了ボタン：カウントをー１（スタッフが呼び出して対応完了した時）
-            document.getElementById('btn-complete').onclick = async () => {
-                if (currentCount > 0) {
+            // 更新関数
+            const updateCount = async (val) => {
+                try {
                     await updateDoc(shopRef, {
-                        "status.waiting.count": currentCount - 1,
+                        "status.waiting.count": increment(val),
                         "status.waiting.updatedAt": serverTimestamp()
                     });
-                }
+                } catch (e) { console.error(e); }
             };
+
+            document.getElementById('btn-reception').onclick = () => updateCount(1);
+            document.getElementById('btn-plus').onclick = () => updateCount(1);
+            document.getElementById('btn-minus').onclick = () => updateCount(-1);
         }
 
-        window.onload = init;
+        init();
     </script>
 </body>
 </html>
