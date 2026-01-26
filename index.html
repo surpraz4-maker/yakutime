@@ -6,10 +6,13 @@
     <title>YAKUtime Reception PRO</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- QRコード生成ライブラリ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         body {
             background: radial-gradient(circle at top right, #f8faff, #eef2ff);
             font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            overflow: hidden;
         }
         .glass-card {
             background: rgba(255, 255, 255, 0.95);
@@ -25,6 +28,12 @@
         .waiting-number {
             font-variant-numeric: tabular-nums;
             text-shadow: 0 10px 20px rgba(30, 41, 59, 0.1);
+        }
+        /* モーダル表示のアニメーション */
+        .modal-enter { animation: modalFadeIn 0.3s ease-out forwards; }
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
         }
     </style>
 </head>
@@ -58,7 +67,7 @@
             </p>
         </div>
 
-        <!-- スタッフ用隠し操作 (マイナス制御付き) -->
+        <!-- スタッフ用隠し操作 -->
         <div class="mt-16 pt-8 border-t border-slate-100">
             <div class="flex items-center justify-center gap-6">
                 <button id="btn-minus" class="w-14 h-14 flex items-center justify-center rounded-full border-2 border-slate-100 text-slate-200 hover:text-indigo-400 hover:border-indigo-200 transition-colors btn-press">
@@ -71,11 +80,23 @@
             <p class="text-[10px] text-slate-300 font-black mt-4 tracking-widest uppercase">Staff Only</p>
         </div>
 
-    </div>
+        <!-- QRコードオーバーレイ (初期は非表示) -->
+        <div id="qr-overlay" class="absolute inset-0 bg-white z-50 flex flex-col items-center justify-center p-8 hidden">
+            <div class="modal-enter flex flex-col items-center">
+                <div class="bg-emerald-100 text-emerald-600 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                    <i data-lucide="check" class="w-10 h-10"></i>
+                </div>
+                <h2 class="text-2xl font-black text-slate-800 mb-2">受付完了</h2>
+                <p class="text-slate-500 text-sm mb-6">スマホで外から待ち状況を確認できます</p>
+                
+                <div id="qrcode-container" class="p-4 bg-white border-4 border-slate-50 rounded-2xl mb-8"></div>
+                
+                <p class="text-indigo-600 font-bold animate-pulse text-sm">QRを読み取ってお進みください</p>
+                
+                <button id="btn-close-qr" class="mt-8 text-slate-300 font-bold text-xs uppercase tracking-widest">閉じる</button>
+            </div>
+        </div>
 
-    <!-- 通知 -->
-    <div id="toast" class="fixed bottom-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-10 py-5 rounded-[2rem] font-black shadow-2xl opacity-0 transition-all pointer-events-none z-50 text-xl">
-        受付を完了しました
     </div>
 
     <script type="module">
@@ -99,23 +120,15 @@
         const urlParams = new URLSearchParams(window.location.search);
         const shopId = urlParams.get('shopId') || 'shibuya-001';
 
-        let currentCount = 0; // 現在の値を保持
+        let currentCount = 0;
 
         lucide.createIcons();
-
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            t.innerText = msg;
-            t.classList.remove('opacity-0', 'translate-y-4');
-            setTimeout(() => t.classList.add('opacity-0', 'translate-y-4'), 3000);
-        }
 
         async function init() {
             await signInAnonymously(auth);
             const shopRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId);
             const logColRef = collection(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs');
 
-            // リアルタイム反映
             onSnapshot(shopRef, (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
@@ -125,8 +138,9 @@
                 }
             });
 
-            // 受付ボタン
+            // 受付実行
             document.getElementById('btn-reception').onclick = async () => {
+                // 1. データ更新
                 await updateDoc(shopRef, {
                     "status.waiting.count": increment(1),
                     "status.waiting.totalToday": increment(1)
@@ -136,15 +150,41 @@
                     timestamp: serverTimestamp(),
                     completedAt: null
                 });
-                showToast("受付が完了しました");
+
+                // 2. QRコード生成（患者が自分のスマホで見るためのURL）
+                // GitHub PagesのURLを動的に生成
+                const baseUrl = window.location.href.split('reception.html')[0];
+                const patientUrl = `${baseUrl}index.html?shopId=${shopId}`;
+                
+                const qrContainer = document.getElementById('qrcode-container');
+                qrContainer.innerHTML = ""; // クリア
+                new QRCode(qrContainer, {
+                    text: patientUrl,
+                    width: 180,
+                    height: 180,
+                    colorDark : "#1e293b",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+
+                // 3. 表示
+                const overlay = document.getElementById('qr-overlay');
+                overlay.classList.remove('hidden');
+
+                // 4. 10秒後に自動で閉じる
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                }, 10000);
             };
 
-            // スタッフ用プラス
+            document.getElementById('btn-close-qr').onclick = () => {
+                document.getElementById('qr-overlay').classList.add('hidden');
+            };
+
             document.getElementById('btn-plus').onclick = () => {
                 updateDoc(shopRef, { "status.waiting.count": increment(1) });
             };
 
-            // スタッフ用マイナス (★0以下にならないガード付き)
             document.getElementById('btn-minus').onclick = () => {
                 if (currentCount > 0) {
                     updateDoc(shopRef, { "status.waiting.count": increment(-1) });
