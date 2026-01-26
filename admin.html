@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YAKUtime Staff Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { background-color: #f8fafc; font-family: 'Inter', sans-serif; }
+        .stat-card { background: white; border-radius: 1.5rem; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); border: 1px solid #e2e8f0; }
+        .btn-action { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .btn-action:active { transform: scale(0.95); }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-5xl mx-auto space-y-6">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-black text-slate-900 tracking-tight">YAKUtime <span class="text-indigo-600">Admin</span></h1>
+                <p id="display-shop-name" class="text-slate-500 font-medium flex items-center gap-2">
+                    <span class="inline-block w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                    店舗データ同期中...
+                </p>
+            </div>
+            <div class="flex gap-2">
+                <button id="btn-export" class="flex-1 md:flex-none bg-white border-2 border-slate-200 hover:border-indigo-600 hover:text-indigo-600 text-slate-700 font-bold py-2 px-6 rounded-xl text-sm flex items-center justify-center gap-2 btn-action">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                    CSV出力 (待ち時間計算込)
+                </button>
+                <button id="btn-reset" class="bg-rose-50 text-rose-600 font-bold py-2 px-4 rounded-xl text-xs hover:bg-rose-100 btn-action">
+                    全リセット
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="stat-card">
+                <p class="text-slate-400 text-xs font-black uppercase mb-1">現在の待ち</p>
+                <div class="flex items-baseline gap-1">
+                    <span id="current-count" class="text-5xl font-black text-slate-800">0</span>
+                    <span class="text-slate-400 font-bold">組</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <p class="text-slate-400 text-xs font-black uppercase mb-1">本日の累計</p>
+                <div class="flex items-baseline gap-1">
+                    <span id="total-count" class="text-5xl font-black text-slate-800">0</span>
+                    <span class="text-slate-400 font-bold">名</span>
+                </div>
+            </div>
+            <div class="stat-card bg-indigo-600 text-white border-none">
+                <p class="text-indigo-200 text-xs font-black uppercase mb-1">平均待ち時間</p>
+                <div class="flex items-baseline gap-1">
+                    <span id="avg-wait" class="text-5xl font-black">--</span>
+                    <span class="text-indigo-200 font-bold">分</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Logic Panel -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left: Operations -->
+            <div class="lg:col-span-1 space-y-4">
+                <div class="stat-card">
+                    <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
+                        <i data-lucide="hand-metal" class="w-5 h-5 text-indigo-500"></i>
+                        カウンター操作
+                    </h2>
+                    <div class="space-y-3">
+                        <button id="btn-plus" class="w-full py-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xl shadow-lg shadow-indigo-200 btn-action flex items-center justify-center gap-3">
+                            <i data-lucide="user-plus" class="w-6 h-6"></i>
+                            手動で受付
+                        </button>
+                        <button id="btn-minus" class="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold btn-action">
+                            1組 減らす
+                        </button>
+                    </div>
+                </div>
+
+                <div class="stat-card bg-amber-50 border-amber-100">
+                    <h3 class="text-amber-800 font-bold text-sm mb-2">💡 待ち時間の仕組み</h3>
+                    <p class="text-amber-700 text-xs leading-relaxed">
+                        「完了」ボタンを押すと、受付からその瞬間までの時間が計算され、ログに記録されます。
+                    </p>
+                </div>
+            </div>
+
+            <!-- Right: Live Logs -->
+            <div class="lg:col-span-2">
+                <div class="stat-card h-full min-h-[400px] flex flex-col">
+                    <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
+                        <i data-lucide="clock" class="w-5 h-5 text-indigo-500"></i>
+                        本日のステータスログ
+                    </h2>
+                    <div class="flex-1 overflow-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="sticky top-0 bg-white">
+                                <tr class="text-slate-400 border-b">
+                                    <th class="py-3 font-bold uppercase text-[10px]">受付時刻</th>
+                                    <th class="py-3 font-bold uppercase text-[10px]">完了時刻</th>
+                                    <th class="py-3 font-bold uppercase text-[10px]">待ち時間</th>
+                                    <th class="py-3 font-bold uppercase text-[10px] text-right">アクション</th>
+                                </tr>
+                            </thead>
+                            <tbody id="log-table" class="divide-y divide-slate-50">
+                                <!-- ログ行がここに挿入されます -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-2xl font-bold shadow-2xl opacity-0 transition-all pointer-events-none z-[5000]">
+        完了
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, updateDoc, increment, serverTimestamp, collection, query, orderBy, limit, addDoc, getDocs, timestamp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjSZkIuGQ4oRoMcZYLaZbdBXK45cBBXos",
+            authDomain: "yakutime-for-ipad.firebaseapp.com",
+            projectId: "yakutime-for-ipad",
+            storageBucket: "yakutime-for-ipad.firebasestorage.app",
+            messagingSenderId: "732724570588",
+            appId: "1:732724570588:web:6e64cba96c6fd17646c719"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'yakutime-for-ipad';
+        const urlParams = new URLSearchParams(window.location.search);
+        const shopId = urlParams.get('shopId') || 'shibuya-001';
+
+        lucide.createIcons();
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.classList.remove('opacity-0', 'translate-y-4');
+            setTimeout(() => t.classList.add('opacity-0', 'translate-y-4'), 3000);
+        }
+
+        async function init() {
+            await signInAnonymously(auth);
+            
+            const shopRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId);
+            const logColRef = collection(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs');
+
+            // 1. 店舗データのリアルタイム同期
+            onSnapshot(shopRef, (snap) => {
+                if (snap.exists()) {
+                    const data = snap.data();
+                    document.getElementById('current-count').innerText = data.status?.waiting?.count || 0;
+                    document.getElementById('total-count').innerText = data.status?.waiting?.totalToday || 0;
+                    document.getElementById('display-shop-name').innerText = `管理中: ${data.name || shopId}`;
+                }
+            });
+
+            // 2. ログのリアルタイム同期 & 平均待ち時間計算
+            const q = query(logColRef, orderBy("timestamp", "desc"), limit(20));
+            onSnapshot(q, (snap) => {
+                const table = document.getElementById('log-table');
+                table.innerHTML = "";
+                let totalWaitTime = 0;
+                let completedCount = 0;
+
+                snap.forEach(docSnap => {
+                    const log = docSnap.data();
+                    const logId = docSnap.id;
+                    const start = log.timestamp?.toDate();
+                    const end = log.completedAt?.toDate();
+                    
+                    let waitText = "--";
+                    let endTimeText = "-";
+                    
+                    if (start && end) {
+                        const diffMin = Math.round((end - start) / 1000 / 60);
+                        waitText = `${diffMin}分`;
+                        endTimeText = end.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'});
+                        totalWaitTime += diffMin;
+                        completedCount++;
+                    }
+
+                    const startTimeText = start ? start.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : "...";
+                    
+                    const row = `
+                        <tr class="group hover:bg-slate-50 transition-colors">
+                            <td class="py-4 font-mono font-medium text-slate-600">${startTimeText}</td>
+                            <td class="py-4 font-mono text-slate-400">${endTimeText}</td>
+                            <td class="py-4">
+                                <span class="${waitText !== '--' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-300'} px-2 py-1 rounded text-xs font-bold">
+                                    ${waitText}
+                                </span>
+                            </td>
+                            <td class="py-4 text-right">
+                                ${!log.completedAt ? `
+                                    <button onclick="window.completeLog('${logId}')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold btn-action">
+                                        完了
+                                    </button>
+                                ` : `
+                                    <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500 ml-auto"></i>
+                                `}
+                            </td>
+                        </tr>
+                    `;
+                    table.innerHTML += row;
+                });
+                
+                // 平均表示
+                document.getElementById('avg-wait').innerText = completedCount > 0 ? Math.round(totalWaitTime / completedCount) : "--";
+                lucide.createIcons();
+            });
+
+            // 完了処理をグローバルに公開
+            window.completeLog = async (logId) => {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs', logId);
+                await updateDoc(docRef, { completedAt: serverTimestamp() });
+                // 待ち組数を1つ減らす
+                await updateDoc(shopRef, { "status.waiting.count": increment(-1) });
+                showToast("呼び出し完了を記録しました");
+            };
+
+            // 操作系
+            document.getElementById('btn-plus').onclick = async () => {
+                await updateDoc(shopRef, {
+                    "status.waiting.count": increment(1),
+                    "status.waiting.totalToday": increment(1)
+                });
+                await addDoc(logColRef, {
+                    type: 'reception',
+                    timestamp: serverTimestamp(),
+                    completedAt: null
+                });
+                showToast("新規受付を記録しました");
+            };
+
+            document.getElementById('btn-minus').onclick = () => updateDoc(shopRef, { "status.waiting.count": increment(-1) });
+
+            document.getElementById('btn-reset').onclick = async () => {
+                if(!confirm("本日のデータをすべてクリアしますか？")) return;
+                await updateDoc(shopRef, {
+                    "status.waiting.count": 0,
+                    "status.waiting.totalToday": 0
+                });
+                showToast("リセット完了");
+            };
+
+            // 高機能CSVエクスポート (待ち時間計算付き)
+            document.getElementById('btn-export').onclick = async () => {
+                const querySnapshot = await getDocs(logColRef);
+                let csvContent = "\uFEFF受付時刻,完了時刻,待ち時間(分)\n"; // BOM for Excel
+                
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const start = data.timestamp?.toDate();
+                    const end = data.completedAt?.toDate();
+                    const startStr = start ? start.toLocaleString('ja-JP') : "";
+                    const endStr = end ? end.toLocaleString('ja-JP') : "";
+                    const waitMin = (start && end) ? Math.round((end - start) / 1000 / 60) : "";
+                    csvContent += `"${startStr}","${endStr}","${waitMin}"\n`;
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `YAKUtime_Report_${new Date().toLocaleDateString()}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+        }
+
+        init();
+    </script>
+</body>
+</html>
