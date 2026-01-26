@@ -2,58 +2,86 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>YAKUtime 受付機</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YAKUtime Reception PRO</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body { background-color: #f8faff; font-family: 'Inter', sans-serif; }
-        .card-shadow { box-shadow: 0 20px 50px rgba(0,0,0,0.05); }
+        body {
+            background: radial-gradient(circle at top right, #f8faff, #eef2ff);
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-press {
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .btn-press:active {
+            transform: scale(0.92);
+        }
+        .waiting-number {
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 10px 20px rgba(30, 41, 59, 0.1);
+        }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
 
-    <div class="w-full max-w-lg bg-white rounded-[40px] p-10 card-shadow relative overflow-hidden">
-        <!-- 背景の装飾 -->
-        <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
+    <div class="max-w-md w-full glass-card rounded-[3rem] shadow-2xl p-10 text-center relative overflow-hidden border-t-8 border-indigo-600">
+        
+        <!-- ヘッダー -->
+        <div class="mb-12">
+            <h1 class="text-4xl font-black text-slate-800 tracking-tighter mb-2">
+                YAKUtime <span class="text-indigo-600">PRO</span>
+            </h1>
+            <p id="shop-name" class="text-slate-400 font-bold tracking-widest text-sm uppercase">SHOP: 読み込み中...</p>
+        </div>
 
-        <header class="text-center mb-10">
-            <h1 class="text-4xl font-black text-slate-800 mb-2">YAKUtime <span class="text-blue-600 text-2xl">PRO</span></h1>
-            <p id="display-shop-name" class="text-slate-400 font-bold tracking-widest uppercase text-sm">SHOP: LOADING...</p>
-        </header>
-
-        <div class="text-center space-y-8">
+        <!-- メインコンテンツ -->
+        <div class="space-y-8 relative z-10">
             <div>
                 <p class="text-slate-400 font-bold mb-4">現在の待ち組数</p>
-                <div id="wait-count" class="text-[120px] font-black text-slate-800 leading-none">0</div>
+                <div id="display-count" class="waiting-number text-[10rem] font-black text-slate-800 leading-none">
+                    0
+                </div>
             </div>
 
-            <div class="pt-6">
-                <button id="btn-reception" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-3xl font-black py-10 rounded-[30px] shadow-2xl shadow-indigo-200 active:scale-95 transition-all">
-                    受付をする
+            <button id="btn-reception" class="w-full py-8 bg-indigo-600 text-white rounded-[2rem] text-3xl font-black shadow-xl shadow-indigo-200 btn-press hover:bg-indigo-700">
+                受付をする
+            </button>
+
+            <p class="text-slate-400 text-xs leading-relaxed font-medium">
+                ※待ち組数・時間は目安であり調剤内容・予約等で前後する場合があります。
+            </p>
+        </div>
+
+        <!-- スタッフ用隠し操作 (マイナス制御付き) -->
+        <div class="mt-16 pt-8 border-t border-slate-100">
+            <div class="flex items-center justify-center gap-6">
+                <button id="btn-minus" class="w-14 h-14 flex items-center justify-center rounded-full border-2 border-slate-100 text-slate-200 hover:text-indigo-400 hover:border-indigo-200 transition-colors btn-press">
+                    <i data-lucide="minus" class="w-8 h-8"></i>
                 </button>
-                <p class="text-slate-400 text-xs mt-6 font-medium leading-relaxed">
-                    ※待ち組数・時間は目安であり調剤内容・予約等で前後する場合があります。
-                </p>
+                <button id="btn-plus" class="w-14 h-14 flex items-center justify-center rounded-full border-2 border-slate-100 text-slate-200 hover:text-indigo-400 hover:border-indigo-200 transition-colors btn-press">
+                    <i data-lucide="plus" class="w-8 h-8"></i>
+                </button>
             </div>
+            <p class="text-[10px] text-slate-300 font-black mt-4 tracking-widest uppercase">Staff Only</p>
         </div>
 
-        <!-- スタッフ用操作パネル (隠し要素) -->
-        <div class="mt-12 pt-8 border-t border-slate-50 flex justify-center gap-4">
-            <button id="btn-minus" class="w-12 h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-300 hover:text-red-500 transition-colors">
-                <i data-lucide="minus"></i>
-            </button>
-            <button id="btn-plus" class="w-12 h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-300 hover:text-green-500 transition-colors">
-                <i data-lucide="plus"></i>
-            </button>
-        </div>
-        <p class="text-center text-[10px] text-slate-300 mt-2 font-bold tracking-widest uppercase">Staff Only</p>
+    </div>
+
+    <!-- 通知 -->
+    <div id="toast" class="fixed bottom-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-10 py-5 rounded-[2rem] font-black shadow-2xl opacity-0 transition-all pointer-events-none z-50 text-xl">
+        受付を完了しました
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, updateDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, updateDoc, increment, serverTimestamp, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAjSZkIuGQ4oRoMcZYLaZbdBXK45cBBXos",
@@ -68,43 +96,60 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
         const appId = 'yakutime-for-ipad';
-
-        // URLからshopIdを取得 (例: ?shopId=shibuya-001)
         const urlParams = new URLSearchParams(window.location.search);
-        const shopId = urlParams.get('shopId') || 'shibuya-001'; // 指定がない場合はデフォルト
+        const shopId = urlParams.get('shopId') || 'shibuya-001';
+
+        let currentCount = 0; // 現在の値を保持
 
         lucide.createIcons();
 
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.classList.remove('opacity-0', 'translate-y-4');
+            setTimeout(() => t.classList.add('opacity-0', 'translate-y-4'), 3000);
+        }
+
         async function init() {
             await signInAnonymously(auth);
-            
-            // 修正されたパスでドキュメントを参照
             const shopRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId);
+            const logColRef = collection(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs');
 
-            // リアルタイム更新の監視
-            onSnapshot(shopRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    document.getElementById('wait-count').innerText = data.status?.waiting?.count || 0;
-                    document.getElementById('display-shop-name').innerText = `SHOP: ${data.name || shopId}`;
-                } else {
-                    document.getElementById('display-shop-name').innerText = "店舗が見つかりません";
+            // リアルタイム反映
+            onSnapshot(shopRef, (snap) => {
+                if (snap.exists()) {
+                    const data = snap.data();
+                    currentCount = data.status?.waiting?.count || 0;
+                    document.getElementById('display-count').innerText = currentCount;
+                    document.getElementById('shop-name').innerText = `SHOP: ${data.name || shopId}`;
                 }
             });
 
-            // 更新関数
-            const updateCount = async (val) => {
-                try {
-                    await updateDoc(shopRef, {
-                        "status.waiting.count": increment(val),
-                        "status.waiting.updatedAt": serverTimestamp()
-                    });
-                } catch (e) { console.error(e); }
+            // 受付ボタン
+            document.getElementById('btn-reception').onclick = async () => {
+                await updateDoc(shopRef, {
+                    "status.waiting.count": increment(1),
+                    "status.waiting.totalToday": increment(1)
+                });
+                await addDoc(logColRef, {
+                    type: 'reception',
+                    timestamp: serverTimestamp(),
+                    completedAt: null
+                });
+                showToast("受付が完了しました");
             };
 
-            document.getElementById('btn-reception').onclick = () => updateCount(1);
-            document.getElementById('btn-plus').onclick = () => updateCount(1);
-            document.getElementById('btn-minus').onclick = () => updateCount(-1);
+            // スタッフ用プラス
+            document.getElementById('btn-plus').onclick = () => {
+                updateDoc(shopRef, { "status.waiting.count": increment(1) });
+            };
+
+            // スタッフ用マイナス (★0以下にならないガード付き)
+            document.getElementById('btn-minus').onclick = () => {
+                if (currentCount > 0) {
+                    updateDoc(shopRef, { "status.waiting.count": increment(-1) });
+                }
+            };
         }
 
         init();
