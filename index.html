@@ -80,9 +80,9 @@
             <p class="text-[10px] text-slate-300 font-black mt-4 tracking-widest uppercase">Staff Only</p>
         </div>
 
-        <!-- QRコードオーバーレイ (初期は非表示) -->
+        <!-- QRコードオーバーレイ -->
         <div id="qr-overlay" class="absolute inset-0 bg-white z-50 flex flex-col items-center justify-center p-8 hidden">
-            <div class="modal-enter flex flex-col items-center">
+            <div class="modal-enter flex flex-col items-center w-full">
                 <div class="bg-emerald-100 text-emerald-600 w-16 h-16 rounded-full flex items-center justify-center mb-4">
                     <i data-lucide="check" class="w-10 h-10"></i>
                 </div>
@@ -91,9 +91,13 @@
                 
                 <div id="qrcode-container" class="p-4 bg-white border-4 border-slate-50 rounded-2xl mb-8"></div>
                 
-                <p class="text-indigo-600 font-bold animate-pulse text-sm">QRを読み取ってお進みください</p>
+                <p class="text-indigo-600 font-bold animate-pulse text-sm mb-8">QRを読み取ってお進みください</p>
                 
-                <button id="btn-close-qr" class="mt-8 text-slate-300 font-bold text-xs uppercase tracking-widest">閉じる</button>
+                <!-- 修正箇所：閉じるボタンを大きく、タップしやすく -->
+                <button id="btn-close-qr" class="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-lg btn-press hover:bg-slate-200 flex items-center justify-center gap-2">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                    閉じる
+                </button>
             </div>
         </div>
 
@@ -121,6 +125,7 @@
         const shopId = urlParams.get('shopId') || 'shibuya-001';
 
         let currentCount = 0;
+        let qrTimer = null; // タイマー管理用
 
         lucide.createIcons();
 
@@ -138,9 +143,7 @@
                 }
             });
 
-            // 受付実行
             document.getElementById('btn-reception').onclick = async () => {
-                // 1. データ更新
                 await updateDoc(shopRef, {
                     "status.waiting.count": increment(1),
                     "status.waiting.totalToday": increment(1)
@@ -151,34 +154,35 @@
                     completedAt: null
                 });
 
-                // 2. QRコード生成（患者が自分のスマホで見るためのURL）
-                // GitHub PagesのURLを動的に生成
                 const baseUrl = window.location.href.split('reception.html')[0];
                 const patientUrl = `${baseUrl}index.html?shopId=${shopId}`;
                 
                 const qrContainer = document.getElementById('qrcode-container');
-                qrContainer.innerHTML = ""; // クリア
+                qrContainer.innerHTML = "";
                 new QRCode(qrContainer, {
                     text: patientUrl,
-                    width: 180,
-                    height: 180,
+                    width: 200, // 少しサイズアップ
+                    height: 200,
                     colorDark : "#1e293b",
                     colorLight : "#ffffff",
                     correctLevel : QRCode.CorrectLevel.H
                 });
 
-                // 3. 表示
                 const overlay = document.getElementById('qr-overlay');
                 overlay.classList.remove('hidden');
 
-                // 4. 10秒後に自動で閉じる
-                setTimeout(() => {
+                // 既存のタイマーがあればクリア
+                if(qrTimer) clearTimeout(qrTimer);
+
+                // 修正箇所：30秒（30000ms）に変更
+                qrTimer = setTimeout(() => {
                     overlay.classList.add('hidden');
-                }, 10000);
+                }, 30000);
             };
 
             document.getElementById('btn-close-qr').onclick = () => {
                 document.getElementById('qr-overlay').classList.add('hidden');
+                if(qrTimer) clearTimeout(qrTimer);
             };
 
             document.getElementById('btn-plus').onclick = () => {
