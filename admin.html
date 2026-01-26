@@ -16,7 +16,7 @@
 <body class="p-4 md:p-8">
 
     <div class="max-w-5xl mx-auto space-y-6">
-        <!-- Header -->
+        <!-- ヘッダー -->
         <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h1 class="text-3xl font-black text-slate-900 tracking-tight">YAKUtime <span class="text-indigo-600">Admin</span></h1>
@@ -28,7 +28,7 @@
             <div class="flex gap-2">
                 <button id="btn-export" class="flex-1 md:flex-none bg-white border-2 border-slate-200 hover:border-indigo-600 hover:text-indigo-600 text-slate-700 font-bold py-2 px-6 rounded-xl text-sm flex items-center justify-center gap-2 btn-action">
                     <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
-                    CSV出力 (待ち時間計算込)
+                    CSV出力
                 </button>
                 <button id="btn-reset" class="bg-rose-50 text-rose-600 font-bold py-2 px-4 rounded-xl text-xs hover:bg-rose-100 btn-action">
                     全リセット
@@ -36,7 +36,7 @@
             </div>
         </header>
 
-        <!-- Stats Grid -->
+        <!-- スタッツ表示 -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="stat-card">
                 <p class="text-slate-400 text-xs font-black uppercase mb-1">現在の待ち</p>
@@ -61,7 +61,7 @@
             </div>
         </div>
 
-        <!-- Main Logic Panel -->
+        <!-- 操作パネル -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="lg:col-span-1 space-y-4">
                 <div class="stat-card">
@@ -79,15 +79,9 @@
                         </button>
                     </div>
                 </div>
-
-                <div class="stat-card bg-amber-50 border-amber-100">
-                    <h3 class="text-amber-800 font-bold text-sm mb-2">💡 待ち時間の仕組み</h3>
-                    <p class="text-amber-700 text-xs leading-relaxed">
-                        「完了」ボタンを押すと、受付からその瞬間までの時間が計算され、ログに記録されます。
-                    </p>
-                </div>
             </div>
 
+            <!-- ログテーブル -->
             <div class="lg:col-span-2">
                 <div class="stat-card h-full min-h-[400px] flex flex-col">
                     <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
@@ -137,6 +131,9 @@
         const urlParams = new URLSearchParams(window.location.search);
         const shopId = urlParams.get('shopId') || 'shibuya-001';
 
+        // 状態管理
+        let currentCount = 0;
+
         lucide.createIcons();
 
         function showToast(msg) {
@@ -147,93 +144,125 @@
         }
 
         async function init() {
-            await signInAnonymously(auth);
-            const shopRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId);
-            const logColRef = collection(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs');
+            try {
+                await signInAnonymously(auth);
+                const shopRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId);
+                const logColRef = collection(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs');
 
-            onSnapshot(shopRef, (snap) => {
-                if (snap.exists()) {
-                    const data = snap.data();
-                    document.getElementById('current-count').innerText = data.status?.waiting?.count || 0;
-                    document.getElementById('total-count').innerText = data.status?.waiting?.totalToday || 0;
-                    document.getElementById('display-shop-name').innerText = `管理中: ${data.name || shopId}`;
-                }
-            });
-
-            const q = query(logColRef, orderBy("timestamp", "desc"), limit(20));
-            onSnapshot(q, (snap) => {
-                const table = document.getElementById('log-table');
-                table.innerHTML = "";
-                let totalWaitTime = 0;
-                let completedCount = 0;
-
-                snap.forEach(docSnap => {
-                    const log = docSnap.data();
-                    const logId = docSnap.id;
-                    const start = log.timestamp?.toDate();
-                    const end = log.completedAt?.toDate();
-                    let waitText = "--";
-                    let endTimeText = "-";
-                    if (start && end) {
-                        const diffMin = Math.round((end - start) / 1000 / 60);
-                        waitText = `${diffMin}分`;
-                        endTimeText = end.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'});
-                        totalWaitTime += diffMin;
-                        completedCount++;
+                // 店舗データ監視
+                onSnapshot(shopRef, (snap) => {
+                    if (snap.exists()) {
+                        const data = snap.data();
+                        currentCount = data.status?.waiting?.count || 0;
+                        document.getElementById('current-count').innerText = currentCount;
+                        document.getElementById('total-count').innerText = data.status?.waiting?.totalToday || 0;
+                        document.getElementById('display-shop-name').innerText = `管理中: ${data.name || shopId}`;
                     }
-                    const startTimeText = start ? start.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : "...";
-                    const row = `
-                        <tr class="group hover:bg-slate-50 transition-colors">
-                            <td class="py-4 font-mono font-medium text-slate-600">${startTimeText}</td>
-                            <td class="py-4 font-mono text-slate-400">${endTimeText}</td>
-                            <td class="py-4"><span class="${waitText !== '--' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-300'} px-2 py-1 rounded text-xs font-bold">${waitText}</span></td>
-                            <td class="py-4 text-right">${!log.completedAt ? `<button onclick="window.completeLog('${logId}')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold btn-action">完了</button>` : `<i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500 ml-auto"></i>`}</td>
-                        </tr>`;
-                    table.innerHTML += row;
-                });
-                document.getElementById('avg-wait').innerText = completedCount > 0 ? Math.round(totalWaitTime / completedCount) : "--";
-                lucide.createIcons();
-            });
+                }, (error) => console.error("Snapshot error:", error));
 
-            window.completeLog = async (logId) => {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs', logId);
-                await updateDoc(docRef, { completedAt: serverTimestamp() });
-                await updateDoc(shopRef, { "status.waiting.count": increment(-1) });
-                showToast("呼び出し完了を記録しました");
-            };
+                // ログデータ監視
+                const q = query(logColRef, orderBy("timestamp", "desc"), limit(20));
+                onSnapshot(q, (snap) => {
+                    const table = document.getElementById('log-table');
+                    table.innerHTML = "";
+                    let totalWaitTime = 0;
+                    let completedCount = 0;
 
-            document.getElementById('btn-plus').onclick = async () => {
-                await updateDoc(shopRef, { "status.waiting.count": increment(1), "status.waiting.totalToday": increment(1) });
-                await addDoc(logColRef, { type: 'reception', timestamp: serverTimestamp(), completedAt: null });
-                showToast("新規受付を記録しました");
-            };
-            document.getElementById('btn-minus').onclick = () => updateDoc(shopRef, { "status.waiting.count": increment(-1) });
-            document.getElementById('btn-reset').onclick = async () => {
-                if(!confirm("本日のデータをすべてクリアしますか？")) return;
-                await updateDoc(shopRef, { "status.waiting.count": 0, "status.waiting.totalToday": 0 });
-                showToast("リセット完了");
-            };
-            document.getElementById('btn-export').onclick = async () => {
-                const querySnapshot = await getDocs(logColRef);
-                let csvContent = "\uFEFF受付時刻,完了時刻,待ち時間(分)\n";
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    const start = data.timestamp?.toDate();
-                    const end = data.completedAt?.toDate();
-                    const startStr = start ? start.toLocaleString('ja-JP') : "";
-                    const endStr = end ? end.toLocaleString('ja-JP') : "";
-                    const waitMin = (start && end) ? Math.round((end - start) / 1000 / 60) : "";
-                    csvContent += `"${startStr}","${endStr}","${waitMin}"\n`;
-                });
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.setAttribute("href", url);
-                link.setAttribute("download", `YAKUtime_Report.csv`);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            };
+                    snap.forEach(docSnap => {
+                        const log = docSnap.data();
+                        const logId = docSnap.id;
+                        const start = log.timestamp?.toDate();
+                        const end = log.completedAt?.toDate();
+                        let waitText = "--";
+                        let endTimeText = "-";
+                        if (start && end) {
+                            const diffMin = Math.round((end - start) / 1000 / 60);
+                            waitText = `${diffMin}分`;
+                            endTimeText = end.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'});
+                            totalWaitTime += diffMin;
+                            completedCount++;
+                        }
+                        const startTimeText = start ? start.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : "...";
+                        const row = `
+                            <tr class="group hover:bg-slate-50 transition-colors">
+                                <td class="py-4 font-mono font-medium text-slate-600">${startTimeText}</td>
+                                <td class="py-4 font-mono text-slate-400">${endTimeText}</td>
+                                <td class="py-4"><span class="${waitText !== '--' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-300'} px-2 py-1 rounded text-xs font-bold">${waitText}</span></td>
+                                <td class="py-4 text-right">${!log.completedAt ? `<button onclick="window.completeLog('${logId}')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold btn-action">完了</button>` : `<i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500 ml-auto"></i>`}</td>
+                            </tr>`;
+                        table.innerHTML += row;
+                    });
+                    document.getElementById('avg-wait').innerText = completedCount > 0 ? Math.round(totalWaitTime / completedCount) : "--";
+                    lucide.createIcons();
+                }, (error) => console.error("Log snapshot error:", error));
+
+                // アクション関数の公開
+                window.completeLog = async (logId) => {
+                    try {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs', logId);
+                        await updateDoc(docRef, { completedAt: serverTimestamp() });
+                        
+                        // マイナスにならないようにガード
+                        if (currentCount > 0) {
+                            await updateDoc(shopRef, { "status.waiting.count": increment(-1) });
+                        }
+                        showToast("呼び出し完了を記録しました");
+                    } catch (e) {
+                        console.error("Complete error:", e);
+                    }
+                };
+
+                document.getElementById('btn-plus').onclick = async () => {
+                    try {
+                        await updateDoc(shopRef, { "status.waiting.count": increment(1), "status.waiting.totalToday": increment(1) });
+                        await addDoc(logColRef, { type: 'reception', timestamp: serverTimestamp(), completedAt: null });
+                        showToast("新規受付を記録しました");
+                    } catch (e) {
+                        console.error("Plus error:", e);
+                    }
+                };
+
+                document.getElementById('btn-minus').onclick = async () => {
+                    try {
+                        if (currentCount > 0) {
+                            await updateDoc(shopRef, { "status.waiting.count": increment(-1) });
+                        }
+                    } catch (e) {
+                        console.error("Minus error:", e);
+                    }
+                };
+
+                document.getElementById('btn-reset').onclick = async () => {
+                    if(!confirm("本日のデータをすべてクリアしますか？")) return;
+                    await updateDoc(shopRef, { "status.waiting.count": 0, "status.waiting.totalToday": 0 });
+                    showToast("リセット完了");
+                };
+
+                document.getElementById('btn-export').onclick = async () => {
+                    const querySnapshot = await getDocs(logColRef);
+                    let csvContent = "\uFEFF受付時刻,完了時刻,待ち時間(分)\n";
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        const start = data.timestamp?.toDate();
+                        const end = data.completedAt?.toDate();
+                        const startStr = start ? start.toLocaleString('ja-JP') : "";
+                        const endStr = end ? end.toLocaleString('ja-JP') : "";
+                        const waitMin = (start && end) ? Math.round((end - start) / 1000 / 60) : "";
+                        csvContent += `"${startStr}","${endStr}","${waitMin}"\n`;
+                    });
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", `YAKUtime_Report.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                };
+            } catch (e) {
+                console.error("Init error:", e);
+                showToast("接続エラーが発生しました。リロードしてください。");
+            }
         }
         init();
     </script>
