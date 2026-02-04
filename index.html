@@ -47,7 +47,10 @@
         <div class="w-1/2 flex flex-col p-10 border-r border-slate-100 bg-slate-50/50">
             <div class="text-left mb-auto">
                 <h1 class="text-4xl font-black text-slate-800 tracking-tighter mb-2">YAKUtime <span class="text-indigo-600">PRO</span></h1>
-                <p id="admin-shop-name" class="text-slate-400 font-bold tracking-widest text-sm uppercase">SHOP: 読み込み中...</p>
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
+                    <p id="admin-shop-name" class="text-slate-400 font-bold tracking-widest text-sm uppercase">SHOP: 読み込み中...</p>
+                </div>
             </div>
             
             <div class="flex-1 flex flex-col justify-center items-center text-center">
@@ -57,11 +60,14 @@
                     <span class="text-4xl font-black text-slate-400">組</span>
                 </div>
                 
-                <!-- 受付機：待ち時間を追加 -->
-                <div class="bg-white/60 px-6 py-2 rounded-2xl border border-white shadow-sm flex items-center gap-3">
-                    <span class="text-slate-400 text-sm font-bold uppercase tracking-wider">推定待ち時間</span>
+                <!-- 受付機：待ち時間（1組5分計算） -->
+                <div class="bg-white/80 px-8 py-3 rounded-2xl border border-white shadow-sm flex items-center gap-4">
+                    <div class="flex flex-col items-start">
+                        <span class="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Estimated</span>
+                        <span class="text-slate-500 text-xs font-bold">推定待ち時間</span>
+                    </div>
                     <div class="flex items-baseline">
-                        <span id="admin-waiting-time" class="text-3xl font-black text-slate-700">0</span>
+                        <span id="admin-waiting-time" class="text-4xl font-black text-slate-700">0</span>
                         <span class="text-sm font-bold text-slate-400 ml-1">分前後</span>
                     </div>
                 </div>
@@ -72,18 +78,18 @@
             </div>
 
             <div class="mt-auto flex items-center gap-4">
-                <button id="btn-minus" class="w-12 h-12 flex items-center justify-center rounded-full border-2 border-slate-200 text-slate-300 hover:text-indigo-400 btn-press"><i data-lucide="minus"></i></button>
-                <button id="btn-plus" class="w-12 h-12 flex items-center justify-center rounded-full border-2 border-slate-200 text-slate-300 hover:text-indigo-400 btn-press"><i data-lucide="plus"></i></button>
-                <span class="text-[10px] text-slate-300 font-black tracking-widest uppercase">Staff Only</span>
+                <button id="btn-minus" class="w-12 h-12 flex items-center justify-center rounded-full border-2 border-slate-200 text-slate-300 hover:text-indigo-400 hover:border-indigo-200 btn-press"><i data-lucide="minus"></i></button>
+                <button id="btn-plus" class="w-12 h-12 flex items-center justify-center rounded-full border-2 border-slate-200 text-slate-300 hover:text-indigo-400 hover:border-indigo-200 btn-press"><i data-lucide="plus"></i></button>
+                <span class="text-[10px] text-slate-300 font-black tracking-widest uppercase ml-2">Internal Adjustment</span>
             </div>
         </div>
         
         <!-- 右：アクション -->
         <div class="w-1/2 flex flex-col justify-center items-center p-12 space-y-10">
             <div class="text-center space-y-4">
-                <div class="bg-indigo-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6"><i data-lucide="user-plus" class="w-10 h-10 text-indigo-600"></i></div>
-                <h2 class="text-3xl font-black text-slate-800">ご来店のお客様へ</h2>
-                <p class="text-slate-500 font-medium px-8">ボタンを押して受付をしてください。<br>スマホで順番を確認できます。</p>
+                <div class="bg-indigo-50 w-24 h-24 rounded-[2rem] flex items-center justify-center mx-auto mb-6 rotate-3 shadow-inner"><i data-lucide="user-plus" class="w-12 h-12 text-indigo-600"></i></div>
+                <h2 class="text-4xl font-black text-slate-800">ご来店のお客様へ</h2>
+                <p class="text-slate-500 font-medium px-8 text-lg">ボタンを押して受付をしてください。<br>スマホで順番を確認できます。</p>
             </div>
             <button id="btn-reception" class="w-full max-w-sm py-10 bg-indigo-600 text-white rounded-[2.5rem] text-4xl font-black shadow-2xl shadow-indigo-200 btn-press flex items-center justify-center gap-4">受付をする</button>
         </div>
@@ -179,6 +185,9 @@
         const mode = urlParams.get('mode'); 
         const shopId = urlParams.get('shopId') || 'shibuya-001';
 
+        // 待ち時間計算設定（1組あたり何分か）
+        const WAIT_TIME_PER_PERSON = 5;
+
         lucide.createIcons();
 
         async function init() {
@@ -195,6 +204,11 @@
             }
         }
 
+        // 待ち時間を計算する共通関数
+        function calculateWaitTime(count) {
+            return count * WAIT_TIME_PER_PERSON;
+        }
+
         function setupAdmin(shopRef, logColRef) {
             let currentCount = 0;
             let qrTimer = null;
@@ -204,7 +218,7 @@
                     const data = snap.data();
                     currentCount = data.status?.waiting?.count || 0;
                     document.getElementById('admin-display-count').innerText = currentCount;
-                    document.getElementById('admin-waiting-time').innerText = currentCount * 15;
+                    document.getElementById('admin-waiting-time').innerText = calculateWaitTime(currentCount);
                     document.getElementById('admin-shop-name').innerText = `SHOP: ${data.name || shopId}`;
                 }
             });
@@ -238,7 +252,7 @@
                     const count = data.status?.waiting?.count || 0;
                     document.getElementById('patient-shop-name').innerText = data.name || "不明な店舗";
                     document.getElementById('patient-waiting-count').innerText = count;
-                    document.getElementById('patient-waiting-time').innerText = count * 15;
+                    document.getElementById('patient-waiting-time').innerText = calculateWaitTime(count);
                 }
             });
         }
