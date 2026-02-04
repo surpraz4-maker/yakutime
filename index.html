@@ -72,7 +72,7 @@
                         </div>
                     </div>
                 </div>
-                <!-- 追加：免責事項 -->
+                <!-- 免責事項 -->
                 <p class="text-slate-400 text-[10px] mt-4 leading-relaxed font-medium">
                     調剤内容、予約等により順番が前後しますので、<br>あくまでも目安になります
                 </p>
@@ -238,8 +238,21 @@
                 document.getElementById('qr-overlay').classList.add('hidden');
                 if(qrTimer) clearTimeout(qrTimer);
             };
-            document.getElementById('btn-plus').onclick = () => updateDoc(shopRef, { "status.waiting.count": increment(1) });
-            document.getElementById('btn-minus').onclick = () => { if(currentCount > 0) updateDoc(shopRef, { "status.waiting.count": increment(-1) }); };
+
+            // スタッフ用プラスボタン：背後で通し番号も増やすことで既存患者の待ち順が変わらないように修正
+            document.getElementById('btn-plus').onclick = () => {
+                updateDoc(shopRef, { 
+                    "status.waiting.count": increment(1),
+                    "status.waiting.totalToday": increment(1) 
+                });
+            };
+
+            // スタッフ用マイナスボタン
+            document.getElementById('btn-minus').onclick = () => { 
+                if(currentCount > 0) {
+                    updateDoc(shopRef, { "status.waiting.count": increment(-1) }); 
+                }
+            };
         }
 
         function setupPatient(shopRef) {
@@ -261,6 +274,7 @@
                         return;
                     }
 
+                    // 待ち順 = 自分の番号 - (全体の総番号 - 待ち組数)
                     const servingNumberStart = totalToday - currentWaitingCount + 1;
                     let myOrder = myNumber - servingNumberStart + 1;
 
