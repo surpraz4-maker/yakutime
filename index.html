@@ -60,16 +60,22 @@
                     <span class="text-4xl font-black text-slate-400">組</span>
                 </div>
                 
-                <div class="bg-white/80 px-8 py-3 rounded-2xl border border-white shadow-sm flex items-center gap-4">
-                    <div class="flex flex-col items-start">
-                        <span class="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Estimated</span>
-                        <span class="text-slate-500 text-xs font-bold">待ち時間目安</span>
-                    </div>
-                    <div class="flex items-baseline">
-                        <span id="admin-waiting-time" class="text-4xl font-black text-slate-700">0</span>
-                        <span class="text-sm font-bold text-slate-400 ml-1">分前後</span>
+                <div class="bg-white/80 px-8 py-3 rounded-2xl border border-white shadow-sm flex flex-col items-center gap-1">
+                    <div class="flex items-center gap-4">
+                        <div class="flex flex-col items-start">
+                            <span class="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Estimated</span>
+                            <span class="text-slate-500 text-xs font-bold">待ち時間目安</span>
+                        </div>
+                        <div class="flex items-baseline">
+                            <span id="admin-waiting-time" class="text-4xl font-black text-slate-700">0</span>
+                            <span class="text-sm font-bold text-slate-400 ml-1">分前後</span>
+                        </div>
                     </div>
                 </div>
+                <!-- 追加：免責事項 -->
+                <p class="text-slate-400 text-[10px] mt-4 leading-relaxed font-medium">
+                    調剤内容、予約等により順番が前後しますので、<br>あくまでも目安になります
+                </p>
             </div>
 
             <div class="mt-auto flex items-center gap-4">
@@ -137,7 +143,7 @@
                     <span id="patient-waiting-time" class="text-2xl font-black text-slate-600">--</span>
                     <span class="text-sm font-bold text-slate-400 ml-1">分前後</span>
                 </div>
-                <p class="text-slate-400 text-[10px] mt-4 leading-relaxed">
+                <p class="text-slate-400 text-[10px] mt-4 leading-relaxed font-medium">
                     調剤内容、予約等により順番が前後しますので、<br>あくまでも目安になります
                 </p>
             </div>
