@@ -160,13 +160,16 @@
             const shopRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId);
             const logColRef = collection(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs');
 
+            let currentCount = 0; // 現在の値を追跡
+
             // Listen to shop stats
             onSnapshot(shopRef, (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
                     const stats = data.status?.waiting || {};
+                    currentCount = stats.count || 0; // 値を更新
                     document.getElementById('shop-display-name').innerText = `管理中: ${data.name || shopId}`;
-                    document.getElementById('stat-waiting').innerText = stats.count || 0;
+                    document.getElementById('stat-waiting').innerText = currentCount;
                     document.getElementById('stat-total').innerText = stats.totalToday || 0;
                     
                     const totalWait = stats.totalWaitTime || 0;
@@ -217,7 +220,6 @@
 
             // Handlers
             document.getElementById('btn-plus').onclick = async () => {
-                // Get current totalToday to assign next number
                 const snap = await getDoc(shopRef);
                 const nextNumber = (snap.data().status?.waiting?.totalToday || 0) + 1;
 
@@ -232,8 +234,11 @@
                 });
             };
 
+            // マイナスガードを追加
             document.getElementById('btn-minus').onclick = () => {
-                updateDoc(shopRef, { "status.waiting.count": increment(-1) });
+                if (currentCount > 0) {
+                    updateDoc(shopRef, { "status.waiting.count": increment(-1) });
+                }
             };
 
             document.getElementById('btn-reset-all').onclick = () => {
@@ -265,11 +270,12 @@
             // Complete Order Global
             window.completeOrder = async (logId, startTimeMillis) => {
                 if (!startTimeMillis) {
-                    // Fallback for logs without timestamp during dev
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs', logId), {
-                        completedAt: serverTimestamp()
-                    });
-                    await updateDoc(shopRef, { "status.waiting.count": increment(-1) });
+                    if (currentCount > 0) {
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs', logId), {
+                            completedAt: serverTimestamp()
+                        });
+                        await updateDoc(shopRef, { "status.waiting.count": increment(-1) });
+                    }
                     return;
                 }
 
@@ -281,8 +287,9 @@
                     waitTime: waitTimeMin
                 });
 
+                // ここでも念のためcountチェック
                 await updateDoc(shopRef, {
-                    "status.waiting.count": increment(-1),
+                    "status.waiting.count": currentCount > 0 ? increment(-1) : 0,
                     "status.waiting.totalWaitTime": increment(waitTimeMin),
                     "status.waiting.completedCount": increment(1)
                 });
