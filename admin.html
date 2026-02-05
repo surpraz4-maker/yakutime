@@ -106,7 +106,7 @@
                                     <th class="pb-4">受付時刻</th>
                                     <th class="pb-4">完了時刻</th>
                                     <th class="pb-4">待ち時間</th>
-                                    <th class="pb-4 text-right">完了処理</th>
+                                    <th class="pb-4 text-right">完了処理 / 削除</th>
                                 </tr>
                             </thead>
                             <tbody id="log-table-body" class="text-slate-600 font-medium">
@@ -119,11 +119,11 @@
         </div>
     </div>
 
-    <!-- Confirm Modal -->
+    <!-- Confirm Modal (Global Reset) -->
     <div id="modal-confirm" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
         <div class="bg-white p-10 rounded-[2.5rem] max-w-sm w-full mx-4 shadow-2xl">
             <h2 class="text-2xl font-black text-slate-800 mb-4">データをリセットしますか？</h2>
-            <p class="text-slate-500 mb-8 font-medium">本日の全統計データ、待ち組数、ログがすべて消去されます。この操作は取り消せません。</p>
+            <p class="text-slate-500 mb-8 font-medium">本日の全統計データ、待ち組数、ログがすべて消去されます。</p>
             <div class="flex gap-4">
                 <button id="btn-cancel" class="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold btn-press">キャンセル</button>
                 <button id="btn-confirm-reset" class="flex-1 py-4 bg-red-600 text-white rounded-2xl font-bold btn-press">リセット実行</button>
@@ -131,10 +131,22 @@
         </div>
     </div>
 
+    <!-- Delete Confirm Modal (Single Row) -->
+    <div id="modal-delete" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white p-10 rounded-[2.5rem] max-w-sm w-full mx-4 shadow-2xl">
+            <h2 class="text-2xl font-black text-slate-800 mb-4">ログを削除しますか？</h2>
+            <p class="text-slate-500 mb-8 font-medium text-sm">※この操作はログの削除のみを行い、「現在の待ち組数」には影響しません。待ち人数を減らす場合は「1組減らす」ボタンを使用してください。</p>
+            <div class="flex gap-4">
+                <button id="btn-delete-cancel" class="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold btn-press">キャンセル</button>
+                <button id="btn-delete-confirm" class="flex-1 py-4 bg-red-600 text-white rounded-2xl font-bold btn-press">削除する</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, updateDoc, increment, serverTimestamp, collection, addDoc, getDoc, getDocs, writeBatch, query } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, updateDoc, increment, serverTimestamp, collection, addDoc, getDoc, getDocs, writeBatch, deleteDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAjSZkIuGQ4oRoMcZYLaZbdBXK45cBBXos",
@@ -161,9 +173,10 @@
             const logColRef = collection(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs');
 
             let currentCount = 0;
-            let currentLogs = []; // CSV用
+            let currentLogs = [];
+            let deleteId = null;
 
-            // Listen to shop stats
+            // Stats Listener
             onSnapshot(shopRef, (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
@@ -180,21 +193,19 @@
                 }
             });
 
-            // Listen to logs
+            // Logs Listener
             onSnapshot(logColRef, (snap) => {
                 const tbody = document.getElementById('log-table-body');
                 tbody.innerHTML = "";
                 currentLogs = [];
                 snap.forEach(d => currentLogs.push({id: d.id, ...d.data()}));
                 
-                // Sort by reception number descending
                 currentLogs.sort((a,b) => (b.number || 0) - (a.number || 0));
 
                 currentLogs.forEach(log => {
                     const tr = document.createElement('tr');
                     tr.className = "border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors";
                     
-                    const waitTime = log.waitTime ? `${log.waitTime}分` : "-";
                     const doneTime = log.completedAt ? log.completedAt.toDate().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : "-";
                     const recTime = log.timestamp ? log.timestamp.toDate().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : "-";
                     const numberLabel = log.number ? `<span class="badge-number">${log.number}</span>` : "-";
@@ -207,11 +218,17 @@
                             ${log.waitTime ? `<span class="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg text-sm font-bold">${log.waitTime}分</span>` : "-"}
                         </td>
                         <td class="py-4 text-right">
-                            ${!log.completedAt ? `
-                                <button onclick="completeOrder('${log.id}', ${log.timestamp?.toMillis()})" class="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-sm font-black btn-press hover:bg-emerald-100 transition-colors flex items-center gap-2 ml-auto">
-                                    <i data-lucide="check" class="w-4 h-4"></i>完了にする
+                            <div class="flex items-center justify-end gap-2">
+                                ${!log.completedAt ? `
+                                    <button onclick="completeOrder('${log.id}', ${log.timestamp?.toMillis()})" class="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-sm font-black btn-press hover:bg-emerald-100 transition-colors flex items-center gap-2">
+                                        <i data-lucide="check" class="w-4 h-4"></i>完了
+                                    </button>
+                                ` : `<span class="text-slate-300 text-xs font-bold uppercase italic px-4">完了済み</span>`}
+                                
+                                <button onclick="openDeleteModal('${log.id}')" class="text-slate-300 hover:text-red-500 p-2 transition-colors">
+                                    <i data-lucide="trash-2" class="w-5 h-5"></i>
                                 </button>
-                            ` : `<span class="text-slate-300 text-xs font-bold uppercase italic px-4">Completed</span>`}
+                            </div>
                         </td>
                     `;
                     tbody.appendChild(tr);
@@ -223,13 +240,11 @@
             document.getElementById('btn-plus').onclick = async () => {
                 const snap = await getDoc(shopRef);
                 const nextNumber = (snap.data().status?.waiting?.totalToday || 0) + 1;
-
                 await updateDoc(shopRef, { 
                     "status.waiting.count": increment(1),
                     "status.waiting.totalToday": increment(1)
                 });
                 await addDoc(logColRef, { 
-                    type: 'reception', 
                     number: nextNumber, 
                     timestamp: serverTimestamp() 
                 });
@@ -241,43 +256,26 @@
                 }
             };
 
-            // CSV Export Logic
-            document.getElementById('btn-csv').onclick = () => {
-                if (currentLogs.length === 0) return;
-
-                const headers = ["受付番号", "受付時刻", "完了時刻", "待ち時間(分)"];
-                const rows = currentLogs.map(log => [
-                    log.number || "-",
-                    log.timestamp ? log.timestamp.toDate().toLocaleString('ja-JP') : "-",
-                    log.completedAt ? log.completedAt.toDate().toLocaleString('ja-JP') : "-",
-                    log.waitTime || "0"
-                ]);
-
-                let csvContent = "\uFEFF"; // UTF-8 BOM for Excel
-                csvContent += headers.join(",") + "\n";
-                rows.forEach(row => {
-                    csvContent += row.join(",") + "\n";
-                });
-
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.setAttribute("href", url);
-                link.setAttribute("download", `yakutime_logs_${shopId}_${new Date().toISOString().split('T')[0]}.csv`);
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+            // Individual Delete
+            window.openDeleteModal = (id) => {
+                deleteId = id;
+                document.getElementById('modal-delete').classList.remove('hidden');
+            };
+            document.getElementById('btn-delete-cancel').onclick = () => {
+                document.getElementById('modal-delete').classList.add('hidden');
+                deleteId = null;
+            };
+            document.getElementById('btn-delete-confirm').onclick = async () => {
+                if (deleteId) {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs', deleteId));
+                    document.getElementById('modal-delete').classList.add('hidden');
+                    deleteId = null;
+                }
             };
 
-            document.getElementById('btn-reset-all').onclick = () => {
-                document.getElementById('modal-confirm').classList.remove('hidden');
-            };
-
-            document.getElementById('btn-cancel').onclick = () => {
-                document.getElementById('modal-confirm').classList.add('hidden');
-            };
-
+            // Global Reset
+            document.getElementById('btn-reset-all').onclick = () => document.getElementById('modal-confirm').classList.remove('hidden');
+            document.getElementById('btn-cancel').onclick = () => document.getElementById('modal-confirm').classList.add('hidden');
             document.getElementById('btn-confirm-reset').onclick = async () => {
                 await updateDoc(shopRef, {
                     "status.waiting.count": 0,
@@ -285,42 +283,44 @@
                     "status.waiting.totalWaitTime": 0,
                     "status.waiting.completedCount": 0
                 });
-
                 const querySnapshot = await getDocs(logColRef);
                 const batch = writeBatch(db);
-                querySnapshot.forEach((d) => {
-                    batch.delete(d.ref);
-                });
+                querySnapshot.forEach((d) => batch.delete(d.ref));
                 await batch.commit();
-
                 document.getElementById('modal-confirm').classList.add('hidden');
             };
 
-            // Complete Order Global
+            // Order Completion
             window.completeOrder = async (logId, startTimeMillis) => {
-                if (!startTimeMillis) {
-                    if (currentCount > 0) {
-                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs', logId), {
-                            completedAt: serverTimestamp()
-                        });
-                        await updateDoc(shopRef, { "status.waiting.count": increment(-1) });
-                    }
-                    return;
-                }
-
                 const now = Date.now();
-                const waitTimeMin = Math.max(0, Math.round((now - startTimeMillis) / 60000));
-                
+                const waitTimeMin = startTimeMillis ? Math.max(0, Math.round((now - startTimeMillis) / 60000)) : 0;
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs', logId), {
                     completedAt: serverTimestamp(),
                     waitTime: waitTimeMin
                 });
-
                 await updateDoc(shopRef, {
                     "status.waiting.count": currentCount > 0 ? increment(-1) : 0,
                     "status.waiting.totalWaitTime": increment(waitTimeMin),
                     "status.waiting.completedCount": increment(1)
                 });
+            };
+
+            // CSV Export
+            document.getElementById('btn-csv').onclick = () => {
+                if (currentLogs.length === 0) return;
+                const headers = ["受付番号", "受付時刻", "完了時刻", "待ち時間(分)"];
+                const rows = currentLogs.map(log => [
+                    log.number || "-",
+                    log.timestamp ? log.timestamp.toDate().toLocaleString('ja-JP') : "-",
+                    log.completedAt ? log.completedAt.toDate().toLocaleString('ja-JP') : "-",
+                    log.waitTime || "0"
+                ]);
+                let csvContent = "\uFEFF" + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = `logs_${shopId}.csv`;
+                link.click();
             };
         }
 
