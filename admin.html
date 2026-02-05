@@ -18,12 +18,20 @@
             border: 1px solid #edf2f7;
         }
         .btn-press:active { transform: scale(0.98); }
+        .badge-number {
+            background: #eef2ff;
+            color: #4f46e5;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 800;
+        }
     </style>
 </head>
 <body class="p-8">
 
     <div class="max-w-7xl mx-auto">
-        <!-- ヘッダー -->
+        <!-- Header -->
         <header class="flex justify-between items-center mb-10">
             <div>
                 <h1 class="text-3xl font-black text-slate-800 flex items-center gap-2">
@@ -41,7 +49,7 @@
             </div>
         </header>
 
-        <!-- スタッツカード -->
+        <!-- Stats -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
             <div class="glass-card p-8">
                 <p class="text-slate-400 font-bold text-sm mb-2 uppercase tracking-widest">現在の待ち</p>
@@ -67,7 +75,7 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- カウンター操作 -->
+            <!-- Counter Controls -->
             <div class="space-y-6">
                 <div class="glass-card p-8">
                     <h3 class="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
@@ -78,30 +86,31 @@
                             <i data-lucide="user-plus"></i>手動で受付
                         </button>
                         <button id="btn-minus" class="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold btn-press hover:bg-slate-200">
-                            1組 減らす
+                            1組 減らす (キャンセル等)
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- ステータスログ -->
+            <!-- Status Logs -->
             <div class="lg:col-span-2">
                 <div class="glass-card p-8 min-h-[400px]">
                     <h3 class="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
-                        <i data-lucide="clock" class="text-indigo-600"></i>本日のステータスログ
+                        <i data-lucide="list-ordered" class="text-indigo-600"></i>本日のステータスログ
                     </h3>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left">
                             <thead>
                                 <tr class="text-slate-400 text-xs font-bold uppercase border-b border-slate-100">
+                                    <th class="pb-4 px-2">受付番号</th>
                                     <th class="pb-4">受付時刻</th>
                                     <th class="pb-4">完了時刻</th>
                                     <th class="pb-4">待ち時間</th>
-                                    <th class="pb-4 text-right">アクション</th>
+                                    <th class="pb-4 text-right">完了処理</th>
                                 </tr>
                             </thead>
                             <tbody id="log-table-body" class="text-slate-600 font-medium">
-                                <!-- ログがここに挿入されます -->
+                                <!-- Logs injected here -->
                             </tbody>
                         </table>
                     </div>
@@ -110,7 +119,7 @@
         </div>
     </div>
 
-    <!-- モーダル（リセット確認用） -->
+    <!-- Confirm Modal -->
     <div id="modal-confirm" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
         <div class="bg-white p-10 rounded-[2.5rem] max-w-sm w-full mx-4 shadow-2xl">
             <h2 class="text-2xl font-black text-slate-800 mb-4">データをリセットしますか？</h2>
@@ -125,7 +134,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, updateDoc, increment, serverTimestamp, collection, addDoc, getDocs, query, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, updateDoc, increment, serverTimestamp, collection, addDoc, getDoc, getDocs, writeBatch, query } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAjSZkIuGQ4oRoMcZYLaZbdBXK45cBBXos",
@@ -151,7 +160,7 @@
             const shopRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId);
             const logColRef = collection(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs');
 
-            // リアルタイムリスナー
+            // Listen to shop stats
             onSnapshot(shopRef, (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
@@ -160,7 +169,6 @@
                     document.getElementById('stat-waiting').innerText = stats.count || 0;
                     document.getElementById('stat-total').innerText = stats.totalToday || 0;
                     
-                    // 平均時間の計算: 合計待ち時間 / 完了数
                     const totalWait = stats.totalWaitTime || 0;
                     const completed = stats.completedCount || 0;
                     const avg = completed > 0 ? Math.round(totalWait / completed) : 0;
@@ -168,15 +176,15 @@
                 }
             });
 
-            // ログの表示
+            // Listen to logs
             onSnapshot(logColRef, (snap) => {
                 const tbody = document.getElementById('log-table-body');
                 tbody.innerHTML = "";
                 const logs = [];
                 snap.forEach(d => logs.push({id: d.id, ...d.data()}));
                 
-                // 新しい順に表示
-                logs.sort((a,b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+                // Sort by reception number descending
+                logs.sort((a,b) => (b.number || 0) - (a.number || 0));
 
                 logs.forEach(log => {
                     const tr = document.createElement('tr');
@@ -185,8 +193,10 @@
                     const waitTime = log.waitTime ? `${log.waitTime}分` : "-";
                     const doneTime = log.completedAt ? log.completedAt.toDate().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : "-";
                     const recTime = log.timestamp ? log.timestamp.toDate().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : "-";
+                    const numberLabel = log.number ? `<span class="badge-number">${log.number}</span>` : "-";
 
                     tr.innerHTML = `
+                        <td class="py-4 px-2">${numberLabel}</td>
                         <td class="py-4 font-bold text-slate-800">${recTime}</td>
                         <td class="py-4 text-slate-400">${doneTime}</td>
                         <td class="py-4">
@@ -194,10 +204,10 @@
                         </td>
                         <td class="py-4 text-right">
                             ${!log.completedAt ? `
-                                <button onclick="completeOrder('${log.id}', ${log.timestamp?.toMillis()})" class="text-emerald-500 hover:bg-emerald-50 p-2 rounded-full transition-colors">
-                                    <i data-lucide="check-circle-2"></i>
+                                <button onclick="completeOrder('${log.id}', ${log.timestamp?.toMillis()})" class="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-sm font-black btn-press hover:bg-emerald-100 transition-colors flex items-center gap-2 ml-auto">
+                                    <i data-lucide="check" class="w-4 h-4"></i>完了にする
                                 </button>
-                            ` : `<i data-lucide="check" class="text-slate-200 inline-block p-2"></i>`}
+                            ` : `<span class="text-slate-300 text-xs font-bold uppercase italic px-4">Completed</span>`}
                         </td>
                     `;
                     tbody.appendChild(tr);
@@ -205,20 +215,27 @@
                 lucide.createIcons();
             });
 
-            // 操作イベント
-            document.getElementById('btn-plus').onclick = () => {
-                updateDoc(shopRef, { 
+            // Handlers
+            document.getElementById('btn-plus').onclick = async () => {
+                // Get current totalToday to assign next number
+                const snap = await getDoc(shopRef);
+                const nextNumber = (snap.data().status?.waiting?.totalToday || 0) + 1;
+
+                await updateDoc(shopRef, { 
                     "status.waiting.count": increment(1),
                     "status.waiting.totalToday": increment(1)
                 });
-                addDoc(logColRef, { type: 'reception', timestamp: serverTimestamp() });
+                await addDoc(logColRef, { 
+                    type: 'reception', 
+                    number: nextNumber, 
+                    timestamp: serverTimestamp() 
+                });
             };
 
             document.getElementById('btn-minus').onclick = () => {
                 updateDoc(shopRef, { "status.waiting.count": increment(-1) });
             };
 
-            // 全リセット
             document.getElementById('btn-reset-all').onclick = () => {
                 document.getElementById('modal-confirm').classList.remove('hidden');
             };
@@ -228,15 +245,13 @@
             };
 
             document.getElementById('btn-confirm-reset').onclick = async () => {
-                // 1. 店舗スタッツの初期化（ここですべての統計値を0にする）
                 await updateDoc(shopRef, {
                     "status.waiting.count": 0,
                     "status.waiting.totalToday": 0,
-                    "status.waiting.totalWaitTime": 0,    // 合計待ち時間をリセット
-                    "status.waiting.completedCount": 0    // 完了数をリセット
+                    "status.waiting.totalWaitTime": 0,
+                    "status.waiting.completedCount": 0
                 });
 
-                // 2. ログの削除
                 const querySnapshot = await getDocs(logColRef);
                 const batch = writeBatch(db);
                 querySnapshot.forEach((d) => {
@@ -247,18 +262,25 @@
                 document.getElementById('modal-confirm').classList.add('hidden');
             };
 
-            // 完了処理のグローバル化
+            // Complete Order Global
             window.completeOrder = async (logId, startTimeMillis) => {
+                if (!startTimeMillis) {
+                    // Fallback for logs without timestamp during dev
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs', logId), {
+                        completedAt: serverTimestamp()
+                    });
+                    await updateDoc(shopRef, { "status.waiting.count": increment(-1) });
+                    return;
+                }
+
                 const now = Date.now();
-                const waitTimeMin = Math.round((now - startTimeMillis) / 60000);
+                const waitTimeMin = Math.max(0, Math.round((now - startTimeMillis) / 60000));
                 
-                // ログの更新
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs', logId), {
                     completedAt: serverTimestamp(),
                     waitTime: waitTimeMin
                 });
 
-                // 店スタッツの更新（待ち時間を加算）
                 await updateDoc(shopRef, {
                     "status.waiting.count": increment(-1),
                     "status.waiting.totalWaitTime": increment(waitTimeMin),
