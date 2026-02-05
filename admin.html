@@ -3,102 +3,106 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YAKUtime Staff Pro</title>
+    <title>YAKUtime Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body { background-color: #f8fafc; font-family: 'Inter', sans-serif; }
-        .stat-card { background: white; border-radius: 1.5rem; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); border: 1px solid #e2e8f0; }
-        .btn-action { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-        .btn-action:active { transform: scale(0.95); }
+        body {
+            background: #f8faff;
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+            border: 1px solid #edf2f7;
+        }
+        .btn-press:active { transform: scale(0.98); }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-8">
 
-    <div class="max-w-5xl mx-auto space-y-6">
+    <div class="max-w-7xl mx-auto">
         <!-- ヘッダー -->
-        <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <header class="flex justify-between items-center mb-10">
             <div>
-                <h1 class="text-3xl font-black text-slate-900 tracking-tight">YAKUtime <span class="text-indigo-600">Admin</span></h1>
-                <p id="display-shop-name" class="text-slate-500 font-medium flex items-center gap-2">
-                    <span class="inline-block w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                    店舗データ同期中...
-                </p>
+                <h1 class="text-3xl font-black text-slate-800 flex items-center gap-2">
+                    YAKUtime <span class="text-indigo-600">Admin</span>
+                </h1>
+                <p id="shop-display-name" class="text-slate-400 font-bold mt-1">管理中: 読み込み中...</p>
             </div>
-            <div class="flex gap-2">
-                <button id="btn-export" class="flex-1 md:flex-none bg-white border-2 border-slate-200 hover:border-indigo-600 hover:text-indigo-600 text-slate-700 font-bold py-2 px-6 rounded-xl text-sm flex items-center justify-center gap-2 btn-action">
-                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
-                    CSV出力
+            <div class="flex gap-3">
+                <button id="btn-csv" class="flex items-center gap-2 px-6 py-3 glass-card text-slate-600 font-bold btn-press hover:bg-slate-50">
+                    <i data-lucide="file-text" class="w-5 h-5"></i>CSV出力
                 </button>
-                <button id="btn-reset" class="bg-rose-50 text-rose-600 font-bold py-2 px-4 rounded-xl text-xs hover:bg-rose-100 btn-action">
+                <button id="btn-reset-all" class="flex items-center gap-2 px-6 py-3 bg-red-50 text-red-600 rounded-2xl font-bold btn-press hover:bg-red-100 transition-colors">
                     全リセット
                 </button>
             </div>
         </header>
 
-        <!-- スタッツ表示 -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div class="stat-card">
-                <p class="text-slate-400 text-xs font-black uppercase mb-1">現在の待ち</p>
-                <div class="flex items-baseline gap-1">
-                    <span id="current-count" class="text-5xl font-black text-slate-800">0</span>
-                    <span class="text-slate-400 font-bold">組</span>
+        <!-- スタッツカード -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div class="glass-card p-8">
+                <p class="text-slate-400 font-bold text-sm mb-2 uppercase tracking-widest">現在の待ち</p>
+                <div class="flex items-baseline gap-2">
+                    <span id="stat-waiting" class="text-6xl font-black text-slate-800">0</span>
+                    <span class="text-xl font-bold text-slate-400">組</span>
                 </div>
             </div>
-            <div class="stat-card">
-                <p class="text-slate-400 text-xs font-black uppercase mb-1">本日の累計</p>
-                <div class="flex items-baseline gap-1">
-                    <span id="total-count" class="text-5xl font-black text-slate-800">0</span>
-                    <span class="text-slate-400 font-bold">名</span>
+            <div class="glass-card p-8">
+                <p class="text-slate-400 font-bold text-sm mb-2 uppercase tracking-widest">本日の累計</p>
+                <div class="flex items-baseline gap-2">
+                    <span id="stat-total" class="text-6xl font-black text-slate-800">0</span>
+                    <span class="text-xl font-bold text-slate-400">名</span>
                 </div>
             </div>
-            <div class="stat-card bg-indigo-600 text-white border-none">
-                <p class="text-indigo-200 text-xs font-black uppercase mb-1">平均待ち時間</p>
-                <div class="flex items-baseline gap-1">
-                    <span id="avg-wait" class="text-5xl font-black">--</span>
-                    <span class="text-indigo-200 font-bold">分</span>
+            <div class="bg-indigo-600 rounded-[2rem] p-8 text-white shadow-xl shadow-indigo-100">
+                <p class="text-indigo-200 font-bold text-sm mb-2 uppercase tracking-widest">平均待ち時間</p>
+                <div class="flex items-baseline gap-2">
+                    <span id="stat-avg" class="text-6xl font-black">0</span>
+                    <span class="text-xl font-bold text-indigo-200">分</span>
                 </div>
             </div>
         </div>
 
-        <!-- 操作パネル -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-1 space-y-4">
-                <div class="stat-card">
-                    <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
-                        <i data-lucide="hand-metal" class="w-5 h-5 text-indigo-500"></i>
-                        カウンター操作
-                    </h2>
-                    <div class="space-y-3">
-                        <button id="btn-plus" class="w-full py-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xl shadow-lg shadow-indigo-200 btn-action flex items-center justify-center gap-3">
-                            <i data-lucide="user-plus" class="w-6 h-6"></i>
-                            手動で受付
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- カウンター操作 -->
+            <div class="space-y-6">
+                <div class="glass-card p-8">
+                    <h3 class="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
+                        <i data-lucide="mouse-pointer-2" class="text-indigo-600"></i>カウンター操作
+                    </h3>
+                    <div class="space-y-4">
+                        <button id="btn-plus" class="w-full py-6 bg-indigo-600 text-white rounded-2xl text-xl font-black shadow-lg shadow-indigo-200 btn-press flex items-center justify-center gap-3">
+                            <i data-lucide="user-plus"></i>手動で受付
                         </button>
-                        <button id="btn-minus" class="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold btn-action">
+                        <button id="btn-minus" class="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold btn-press hover:bg-slate-200">
                             1組 減らす
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- ログテーブル -->
+            <!-- ステータスログ -->
             <div class="lg:col-span-2">
-                <div class="stat-card h-full min-h-[400px] flex flex-col">
-                    <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
-                        <i data-lucide="clock" class="w-5 h-5 text-indigo-500"></i>
-                        本日のステータスログ
-                    </h2>
-                    <div class="flex-1 overflow-auto">
-                        <table class="w-full text-left text-sm">
-                            <thead class="sticky top-0 bg-white">
-                                <tr class="text-slate-400 border-b">
-                                    <th class="py-3 font-bold uppercase text-[10px]">受付時刻</th>
-                                    <th class="py-3 font-bold uppercase text-[10px]">完了時刻</th>
-                                    <th class="py-3 font-bold uppercase text-[10px]">待ち時間</th>
-                                    <th class="py-3 font-bold uppercase text-[10px] text-right">アクション</th>
+                <div class="glass-card p-8 min-h-[400px]">
+                    <h3 class="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
+                        <i data-lucide="clock" class="text-indigo-600"></i>本日のステータスログ
+                    </h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead>
+                                <tr class="text-slate-400 text-xs font-bold uppercase border-b border-slate-100">
+                                    <th class="pb-4">受付時刻</th>
+                                    <th class="pb-4">完了時刻</th>
+                                    <th class="pb-4">待ち時間</th>
+                                    <th class="pb-4 text-right">アクション</th>
                                 </tr>
                             </thead>
-                            <tbody id="log-table" class="divide-y divide-slate-50"></tbody>
+                            <tbody id="log-table-body" class="text-slate-600 font-medium">
+                                <!-- ログがここに挿入されます -->
+                            </tbody>
                         </table>
                     </div>
                 </div>
@@ -106,14 +110,22 @@
         </div>
     </div>
 
-    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-2xl font-bold shadow-2xl opacity-0 transition-all pointer-events-none z-[5000]">
-        完了
+    <!-- モーダル（リセット確認用） -->
+    <div id="modal-confirm" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white p-10 rounded-[2.5rem] max-w-sm w-full mx-4 shadow-2xl">
+            <h2 class="text-2xl font-black text-slate-800 mb-4">データをリセットしますか？</h2>
+            <p class="text-slate-500 mb-8 font-medium">本日の全統計データ、待ち組数、ログがすべて消去されます。この操作は取り消せません。</p>
+            <div class="flex gap-4">
+                <button id="btn-cancel" class="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold btn-press">キャンセル</button>
+                <button id="btn-confirm-reset" class="flex-1 py-4 bg-red-600 text-white rounded-2xl font-bold btn-press">リセット実行</button>
+            </div>
+        </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, updateDoc, increment, serverTimestamp, collection, query, orderBy, limit, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, updateDoc, increment, serverTimestamp, collection, addDoc, getDocs, query, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAjSZkIuGQ4oRoMcZYLaZbdBXK45cBBXos",
@@ -128,142 +140,133 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
         const appId = 'yakutime-for-ipad';
+        
         const urlParams = new URLSearchParams(window.location.search);
         const shopId = urlParams.get('shopId') || 'shibuya-001';
 
-        // 状態管理
-        let currentCount = 0;
-
         lucide.createIcons();
 
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            t.innerText = msg;
-            t.classList.remove('opacity-0', 'translate-y-4');
-            setTimeout(() => t.classList.add('opacity-0', 'translate-y-4'), 3000);
-        }
-
         async function init() {
-            try {
-                await signInAnonymously(auth);
-                const shopRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId);
-                const logColRef = collection(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs');
+            await signInAnonymously(auth);
+            const shopRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId);
+            const logColRef = collection(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs');
 
-                // 店舗データ監視
-                onSnapshot(shopRef, (snap) => {
-                    if (snap.exists()) {
-                        const data = snap.data();
-                        currentCount = data.status?.waiting?.count || 0;
-                        document.getElementById('current-count').innerText = currentCount;
-                        document.getElementById('total-count').innerText = data.status?.waiting?.totalToday || 0;
-                        document.getElementById('display-shop-name').innerText = `管理中: ${data.name || shopId}`;
-                    }
-                }, (error) => console.error("Snapshot error:", error));
+            // リアルタイムリスナー
+            onSnapshot(shopRef, (snap) => {
+                if (snap.exists()) {
+                    const data = snap.data();
+                    const stats = data.status?.waiting || {};
+                    document.getElementById('shop-display-name').innerText = `管理中: ${data.name || shopId}`;
+                    document.getElementById('stat-waiting').innerText = stats.count || 0;
+                    document.getElementById('stat-total').innerText = stats.totalToday || 0;
+                    
+                    // 平均時間の計算: 合計待ち時間 / 完了数
+                    const totalWait = stats.totalWaitTime || 0;
+                    const completed = stats.completedCount || 0;
+                    const avg = completed > 0 ? Math.round(totalWait / completed) : 0;
+                    document.getElementById('stat-avg').innerText = avg;
+                }
+            });
 
-                // ログデータ監視
-                const q = query(logColRef, orderBy("timestamp", "desc"), limit(20));
-                onSnapshot(q, (snap) => {
-                    const table = document.getElementById('log-table');
-                    table.innerHTML = "";
-                    let totalWaitTime = 0;
-                    let completedCount = 0;
+            // ログの表示
+            onSnapshot(logColRef, (snap) => {
+                const tbody = document.getElementById('log-table-body');
+                tbody.innerHTML = "";
+                const logs = [];
+                snap.forEach(d => logs.push({id: d.id, ...d.data()}));
+                
+                // 新しい順に表示
+                logs.sort((a,b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
 
-                    snap.forEach(docSnap => {
-                        const log = docSnap.data();
-                        const logId = docSnap.id;
-                        const start = log.timestamp?.toDate();
-                        const end = log.completedAt?.toDate();
-                        let waitText = "--";
-                        let endTimeText = "-";
-                        if (start && end) {
-                            const diffMin = Math.round((end - start) / 1000 / 60);
-                            waitText = `${diffMin}分`;
-                            endTimeText = end.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'});
-                            totalWaitTime += diffMin;
-                            completedCount++;
-                        }
-                        const startTimeText = start ? start.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : "...";
-                        const row = `
-                            <tr class="group hover:bg-slate-50 transition-colors">
-                                <td class="py-4 font-mono font-medium text-slate-600">${startTimeText}</td>
-                                <td class="py-4 font-mono text-slate-400">${endTimeText}</td>
-                                <td class="py-4"><span class="${waitText !== '--' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-300'} px-2 py-1 rounded text-xs font-bold">${waitText}</span></td>
-                                <td class="py-4 text-right">${!log.completedAt ? `<button onclick="window.completeLog('${logId}')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold btn-action">完了</button>` : `<i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500 ml-auto"></i>`}</td>
-                            </tr>`;
-                        table.innerHTML += row;
-                    });
-                    document.getElementById('avg-wait').innerText = completedCount > 0 ? Math.round(totalWaitTime / completedCount) : "--";
-                    lucide.createIcons();
-                }, (error) => console.error("Log snapshot error:", error));
+                logs.forEach(log => {
+                    const tr = document.createElement('tr');
+                    tr.className = "border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors";
+                    
+                    const waitTime = log.waitTime ? `${log.waitTime}分` : "-";
+                    const doneTime = log.completedAt ? log.completedAt.toDate().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : "-";
+                    const recTime = log.timestamp ? log.timestamp.toDate().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : "-";
 
-                // アクション関数の公開
-                window.completeLog = async (logId) => {
-                    try {
-                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs', logId);
-                        await updateDoc(docRef, { completedAt: serverTimestamp() });
-                        
-                        // マイナスにならないようにガード
-                        if (currentCount > 0) {
-                            await updateDoc(shopRef, { "status.waiting.count": increment(-1) });
-                        }
-                        showToast("呼び出し完了を記録しました");
-                    } catch (e) {
-                        console.error("Complete error:", e);
-                    }
-                };
+                    tr.innerHTML = `
+                        <td class="py-4 font-bold text-slate-800">${recTime}</td>
+                        <td class="py-4 text-slate-400">${doneTime}</td>
+                        <td class="py-4">
+                            ${log.waitTime ? `<span class="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg text-sm font-bold">${log.waitTime}分</span>` : "-"}
+                        </td>
+                        <td class="py-4 text-right">
+                            ${!log.completedAt ? `
+                                <button onclick="completeOrder('${log.id}', ${log.timestamp?.toMillis()})" class="text-emerald-500 hover:bg-emerald-50 p-2 rounded-full transition-colors">
+                                    <i data-lucide="check-circle-2"></i>
+                                </button>
+                            ` : `<i data-lucide="check" class="text-slate-200 inline-block p-2"></i>`}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                lucide.createIcons();
+            });
 
-                document.getElementById('btn-plus').onclick = async () => {
-                    try {
-                        await updateDoc(shopRef, { "status.waiting.count": increment(1), "status.waiting.totalToday": increment(1) });
-                        await addDoc(logColRef, { type: 'reception', timestamp: serverTimestamp(), completedAt: null });
-                        showToast("新規受付を記録しました");
-                    } catch (e) {
-                        console.error("Plus error:", e);
-                    }
-                };
+            // 操作イベント
+            document.getElementById('btn-plus').onclick = () => {
+                updateDoc(shopRef, { 
+                    "status.waiting.count": increment(1),
+                    "status.waiting.totalToday": increment(1)
+                });
+                addDoc(logColRef, { type: 'reception', timestamp: serverTimestamp() });
+            };
 
-                document.getElementById('btn-minus').onclick = async () => {
-                    try {
-                        if (currentCount > 0) {
-                            await updateDoc(shopRef, { "status.waiting.count": increment(-1) });
-                        }
-                    } catch (e) {
-                        console.error("Minus error:", e);
-                    }
-                };
+            document.getElementById('btn-minus').onclick = () => {
+                updateDoc(shopRef, { "status.waiting.count": increment(-1) });
+            };
 
-                document.getElementById('btn-reset').onclick = async () => {
-                    if(!confirm("本日のデータをすべてクリアしますか？")) return;
-                    await updateDoc(shopRef, { "status.waiting.count": 0, "status.waiting.totalToday": 0 });
-                    showToast("リセット完了");
-                };
+            // 全リセット
+            document.getElementById('btn-reset-all').onclick = () => {
+                document.getElementById('modal-confirm').classList.remove('hidden');
+            };
 
-                document.getElementById('btn-export').onclick = async () => {
-                    const querySnapshot = await getDocs(logColRef);
-                    let csvContent = "\uFEFF受付時刻,完了時刻,待ち時間(分)\n";
-                    querySnapshot.forEach((doc) => {
-                        const data = doc.data();
-                        const start = data.timestamp?.toDate();
-                        const end = data.completedAt?.toDate();
-                        const startStr = start ? start.toLocaleString('ja-JP') : "";
-                        const endStr = end ? end.toLocaleString('ja-JP') : "";
-                        const waitMin = (start && end) ? Math.round((end - start) / 1000 / 60) : "";
-                        csvContent += `"${startStr}","${endStr}","${waitMin}"\n`;
-                    });
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.setAttribute("href", url);
-                    link.setAttribute("download", `YAKUtime_Report.csv`);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                };
-            } catch (e) {
-                console.error("Init error:", e);
-                showToast("接続エラーが発生しました。リロードしてください。");
-            }
+            document.getElementById('btn-cancel').onclick = () => {
+                document.getElementById('modal-confirm').classList.add('hidden');
+            };
+
+            document.getElementById('btn-confirm-reset').onclick = async () => {
+                // 1. 店舗スタッツの初期化（ここですべての統計値を0にする）
+                await updateDoc(shopRef, {
+                    "status.waiting.count": 0,
+                    "status.waiting.totalToday": 0,
+                    "status.waiting.totalWaitTime": 0,    // 合計待ち時間をリセット
+                    "status.waiting.completedCount": 0    // 完了数をリセット
+                });
+
+                // 2. ログの削除
+                const querySnapshot = await getDocs(logColRef);
+                const batch = writeBatch(db);
+                querySnapshot.forEach((d) => {
+                    batch.delete(d.ref);
+                });
+                await batch.commit();
+
+                document.getElementById('modal-confirm').classList.add('hidden');
+            };
+
+            // 完了処理のグローバル化
+            window.completeOrder = async (logId, startTimeMillis) => {
+                const now = Date.now();
+                const waitTimeMin = Math.round((now - startTimeMillis) / 60000);
+                
+                // ログの更新
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs', logId), {
+                    completedAt: serverTimestamp(),
+                    waitTime: waitTimeMin
+                });
+
+                // 店スタッツの更新（待ち時間を加算）
+                await updateDoc(shopRef, {
+                    "status.waiting.count": increment(-1),
+                    "status.waiting.totalWaitTime": increment(waitTimeMin),
+                    "status.waiting.completedCount": increment(1)
+                });
+            };
         }
+
         init();
     </script>
 </body>
