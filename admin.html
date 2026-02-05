@@ -160,14 +160,15 @@
             const shopRef = doc(db, 'artifacts', appId, 'public', 'data', 'shops', shopId);
             const logColRef = collection(db, 'artifacts', appId, 'public', 'data', 'shops', shopId, 'logs');
 
-            let currentCount = 0; // 現在の値を追跡
+            let currentCount = 0;
+            let currentLogs = []; // CSV用
 
             // Listen to shop stats
             onSnapshot(shopRef, (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
                     const stats = data.status?.waiting || {};
-                    currentCount = stats.count || 0; // 値を更新
+                    currentCount = stats.count || 0;
                     document.getElementById('shop-display-name').innerText = `管理中: ${data.name || shopId}`;
                     document.getElementById('stat-waiting').innerText = currentCount;
                     document.getElementById('stat-total').innerText = stats.totalToday || 0;
@@ -183,13 +184,13 @@
             onSnapshot(logColRef, (snap) => {
                 const tbody = document.getElementById('log-table-body');
                 tbody.innerHTML = "";
-                const logs = [];
-                snap.forEach(d => logs.push({id: d.id, ...d.data()}));
+                currentLogs = [];
+                snap.forEach(d => currentLogs.push({id: d.id, ...d.data()}));
                 
                 // Sort by reception number descending
-                logs.sort((a,b) => (b.number || 0) - (a.number || 0));
+                currentLogs.sort((a,b) => (b.number || 0) - (a.number || 0));
 
-                logs.forEach(log => {
+                currentLogs.forEach(log => {
                     const tr = document.createElement('tr');
                     tr.className = "border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors";
                     
@@ -234,11 +235,39 @@
                 });
             };
 
-            // マイナスガードを追加
             document.getElementById('btn-minus').onclick = () => {
                 if (currentCount > 0) {
                     updateDoc(shopRef, { "status.waiting.count": increment(-1) });
                 }
+            };
+
+            // CSV Export Logic
+            document.getElementById('btn-csv').onclick = () => {
+                if (currentLogs.length === 0) return;
+
+                const headers = ["受付番号", "受付時刻", "完了時刻", "待ち時間(分)"];
+                const rows = currentLogs.map(log => [
+                    log.number || "-",
+                    log.timestamp ? log.timestamp.toDate().toLocaleString('ja-JP') : "-",
+                    log.completedAt ? log.completedAt.toDate().toLocaleString('ja-JP') : "-",
+                    log.waitTime || "0"
+                ]);
+
+                let csvContent = "\uFEFF"; // UTF-8 BOM for Excel
+                csvContent += headers.join(",") + "\n";
+                rows.forEach(row => {
+                    csvContent += row.join(",") + "\n";
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `yakutime_logs_${shopId}_${new Date().toISOString().split('T')[0]}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
             };
 
             document.getElementById('btn-reset-all').onclick = () => {
@@ -287,7 +316,6 @@
                     waitTime: waitTimeMin
                 });
 
-                // ここでも念のためcountチェック
                 await updateDoc(shopRef, {
                     "status.waiting.count": currentCount > 0 ? increment(-1) : 0,
                     "status.waiting.totalWaitTime": increment(waitTimeMin),
